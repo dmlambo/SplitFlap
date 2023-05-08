@@ -3,7 +3,9 @@
 #define MOTOR_IN3 D7
 #define MOTOR_IN4 D8
 
-#define HALL D3
+#define MOTOR_STEPS 4076 // Half step
+
+#define HALL D0
 
 #define I2C_FREQUENCY 100000
 

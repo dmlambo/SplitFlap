@@ -4,6 +4,8 @@
 
 #include "Config.h"
 
+#include "Motor.h"
+
 typedef void (*commandFunc)(String, String, String, String);
 
 struct Command {
@@ -79,17 +81,23 @@ void sendToSlaveCommand(String address, String two, String three, String four) {
   Serial.println("Send to slave not yet implemented");
 }
 
+void startMotorCalibration(String one, String two, String three, String four) {
+  Serial.println("Calibrating motor...");
+  motorCalibrate();
+}
+
 static Command commands[] = {
   { .prefix = 'm', .description = "Set master mode (m [0|1])", .function = setMasterCommand },
   { .prefix = 'a', .description = "Set address (a [1-255])", .function = setAddressCommand },
   { .prefix = 'z', .description = "Set zero point offset (z [0-255])", .function = setZeroOffsetCommand },
+  { .prefix = 'c', .description = "Calibrate motor to 0 position", startMotorCalibration },
   { .prefix = 's', .description = "Send to slave at address (s [0-255][otherCommand])" },
   { .prefix = 'r', .description = "Reset", .function = resetCommand },
 };
 
 void printCommandHelp() {
   Serial.println("Here are the commands available to you:");
-  for (int i = 0; i < sizeof(commands) / sizeof(commands[0]); i++) {
+  for (unsigned int i = 0; i < sizeof(commands) / sizeof(commands[0]); i++) {
     char buff[255];
     snprintf(buff, 255, "  %c    %s", commands[i].prefix, commands[i].description);
     Serial.println(buff);
@@ -97,7 +105,7 @@ void printCommandHelp() {
 }
 
 void handleCommand(String command) {
-  for (int i = 0; i < sizeof(commands) / sizeof(commands[0]); i++) {
+  for (unsigned int i = 0; i < sizeof(commands) / sizeof(commands[0]); i++) {
     if (command[0] == commands[i].prefix) {
       char scan[] = "X %s %s %s %s";
       char args[4][20];
@@ -108,6 +116,9 @@ void handleCommand(String command) {
       sscanf(command.c_str(), scan, &args[0], &args[1], &args[2], &args[3]);
 
       commands[i].function(args[0], args[1], args[2], args[3]);
+      return;
     }
   }
+  Serial.println("Unknown command");
+  printCommandHelp();
 }

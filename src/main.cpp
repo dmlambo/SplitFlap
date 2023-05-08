@@ -6,9 +6,20 @@
 #include "Config.h"
 #include "Commands.h"
 
+#include "Motor.h"
+
 ModuleConfig Config;
 
 void setup() {
+  pinMode(MOTOR_IN1, OUTPUT);
+  pinMode(MOTOR_IN2, OUTPUT);
+  pinMode(MOTOR_IN3, OUTPUT);
+  pinMode(MOTOR_IN4, OUTPUT);
+
+  pinMode(HALL, INPUT_PULLUP);
+
+  digitalWrite(MOTOR_IN1, 1);
+
   Serial.begin(57600);
 
   while (!Serial) { yield(); }
@@ -28,6 +39,9 @@ void setup() {
   Serial.println();
 
   printCommandHelp();
+
+  motorInit(1);
+  motorCalibrate();
 }
 
 void loop() {
@@ -35,5 +49,10 @@ void loop() {
     String command = Serial.readString();
 
     handleCommand(command);
+  }
+
+  if (motorCalibrated) {
+    motorCalibrated = false;
+    Serial.println("Motor is calibrated.");
   }
 }
