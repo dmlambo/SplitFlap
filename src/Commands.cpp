@@ -50,9 +50,24 @@ void setZeroOffsetCommand(String address, String two, String three, String four)
   EEPROM.commit();
 
   Serial.print("New zero point set to "); Serial.println(newZero);
-  Serial.println("Resetting...");
+  Serial.println("Calibrating...");
+  motorCalibrate();
+}
 
-  ESP.reset();
+void setSpeedCommand(String speed, String two, String three, String four) {
+  int newSpeed = speed.toInt();
+
+  if (newSpeed > 30 || newSpeed < 1) {
+    Serial.println("Failed: Speed not in range 1-30");
+    return;
+  }
+
+  Config.rpm = newSpeed;
+  memcpy(EEPROM.getDataPtr(), &Config, sizeof(ModuleConfig));
+  EEPROM.commit();
+
+  Serial.print("New speed set to "); Serial.println(newSpeed);
+  motorSetRPM(newSpeed);
 }
 
 void setMasterCommand(String address, String two, String three, String four) {
@@ -66,6 +81,9 @@ void setMasterCommand(String address, String two, String three, String four) {
   Config.isMaster = newMaster;
   memcpy(EEPROM.getDataPtr(), &Config, sizeof(ModuleConfig));
   EEPROM.commit();
+
+  Serial.println("Even Here?");
+  Serial.flush();
 
   if (newMaster) {
     Serial.println("Now set to master.");
@@ -81,7 +99,7 @@ void sendToSlaveCommand(String address, String two, String three, String four) {
   Serial.println("Send to slave not yet implemented");
 }
 
-void startMotorCalibration(String one, String two, String three, String four) {
+void calibrateMotorCommand(String one, String two, String three, String four) {
   Serial.println("Calibrating motor...");
   motorCalibrate();
 }
@@ -90,8 +108,8 @@ static Command commands[] = {
   { .prefix = 'm', .description = "Set master mode (m [0|1])", .function = setMasterCommand },
   { .prefix = 'a', .description = "Set address (a [1-255])", .function = setAddressCommand },
   { .prefix = 'z', .description = "Set zero point offset (z [0-255])", .function = setZeroOffsetCommand },
-  { .prefix = 'c', .description = "Calibrate motor to 0 position", startMotorCalibration },
-  { .prefix = 's', .description = "Send to slave at address (s [0-255][otherCommand])" },
+  { .prefix = 'c', .description = "Calibrate motor to 0 position", calibrateMotorCommand },
+  { .prefix = 's', .description = "Speed in RPM (s [1-30])", setSpeedCommand },
   { .prefix = 'r', .description = "Reset", .function = resetCommand },
 };
 
@@ -115,7 +133,9 @@ void handleCommand(String command) {
       // My kingdom for split.
       sscanf(command.c_str(), scan, &args[0], &args[1], &args[2], &args[3]);
 
+      disableMotorTimer();
       commands[i].function(args[0], args[1], args[2], args[3]);
+      enableMotorTimer();
       return;
     }
   }

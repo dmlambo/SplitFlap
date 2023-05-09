@@ -13,6 +13,7 @@ struct ModuleConfig {
   bool isMaster;
   char address; // i2c address
   char zeroOffset; // how many steps after hitting the hall effect marks the zero point (only positive)
+  char rpm;
 };
 
 extern ModuleConfig Config;

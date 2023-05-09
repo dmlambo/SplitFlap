@@ -2,6 +2,8 @@
 
 #include "Config.h"
 
+#include "Motor.h"
+
 const bool PinStates[][4] = {
   { true, false, false, false },
   { true, true, false, false },
@@ -23,7 +25,7 @@ static bool motorEnabled = false;
 static bool motorRunning = false;
 static int motorStep = 0;
 static int motorTarget = 0;
-static char hallDebounce = 0;
+static int hallDebounce = 0;
 
 bool motorCalibrated = false;
 
@@ -52,7 +54,7 @@ void doMotorISR() {
     digitalWrite(Pins[3], false);
   }
 
-  if (digitalRead(HALL)) {
+  if (!digitalRead(HALL)) {
     hallDebounce++;
   } else {
     hallDebounce--;
@@ -61,7 +63,7 @@ void doMotorISR() {
   if (hallDebounce > 5) {
     hallDebounce = 5;
     // This implies that at startup, even if we're next to the hall sensor, we'll need to go around again.
-    if (motorStep > 200) {
+    if (motorStep > 400) {
       motorStep = -Config.zeroOffset;
       motorCalibrated = true;
     }
@@ -80,13 +82,25 @@ void motorCalibrate() {
   interrupts();
 }
 
-void motorInit(float rpm) {
-  float usecPerRev = (float)(1000000 * 60) / rpm;
+void motorSetRPM(int rpm) {
+  float usecPerRev = (float)(1000000 * 60) / (float)rpm;
   float usecPerStep = usecPerRev / (float)MOTOR_STEPS;
   int timerValue = CPU_CLK_FREQ / 16 / 1000000 * usecPerStep;
 
+  timer1_write(timerValue);
+}
+
+void motorInit() {
   timer1_disable();
   timer1_attachInterrupt(doMotorISR);
-  timer1_write(timerValue);
+  motorSetRPM(Config.rpm);
+  enableMotorTimer();
+}
+
+void disableMotorTimer() {
+  timer1_disable();
+}
+
+void enableMotorTimer() {
   timer1_enable(TIM_DIV16, TIM_EDGE, TIM_LOOP);
 }
