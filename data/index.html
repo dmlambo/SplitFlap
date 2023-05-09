@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<!--[if lt IE 7]>      <html class="no-js lt-ie9 lt-ie8 lt-ie7"> <![endif]-->
+<!--[if IE 7]>         <html class="no-js lt-ie9 lt-ie8"> <![endif]-->
+<!--[if IE 8]>         <html class="no-js lt-ie9"> <![endif]-->
+<!--[if gt IE 8]>      <html class="no-js"> <!--<![endif]-->
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>SplitFlap Controller</title>
+    <meta name="description" content="">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <h1>
+      <p style="text-align:center">
+        <span class="sfFont">
+          <span class="sfChar">S</span>
+          <span class="sfSpace"> </span>
+          <span class="sfChar">P</span>
+          <span class="sfSpace"> </span>
+          <span class="sfChar">L</span>
+          <span class="sfSpace"> </span>
+          <span class="sfChar">I</span>
+          <span class="sfSpace"> </span>
+          <span class="sfChar">T</span>
+        </span>
+      </p>
+      <div class="modeSelector">
+        <fieldset>
+          <legend>Operational Mode</legend>
+      
+          <div class="modeLabel">
+            <input type="radio" id="custom" name="displayType" value="custom" checked/>
+            <label for="custom">Custom</label>
+            <input type="text" id="customText" name="displayType"/>
+          </div>
+
+          <div class="modeLabel">
+            <input type="radio" id="time" name="displayType" value="time"/>
+            <label for="time">Time/Date</label>
+            <input list="commonTimes" type="text" id="timeText" name="displayType"/>
+            <datalist id="commonTimes">
+              <option value="m/d/y">eg 03/26/85</option>
+              <option value="d/m/y">eg 26/03/85</option>
+              <option value="l">eg Friday</option>
+              <option value="M jS">eg Mar 1st</option>
+              <option value="gA">eg 04:20pm</option>
+            </datalist>
+          </div>
+
+          <fieldset>
+            <legend>Justify</legend>
+            <div class="justifyLabel">
+              <input type="radio" id="justifyLeft" name="justify"/>
+              <label for="justifyLeft">Left</label>
+              <input type="radio" id="justifyCenter" name="justify"/>
+              <label for="justifyCenter">Center</label>
+              <input type="radio" id="justifyRight" name="justify" checked/>
+              <label for="justifyRight">Right</label>
+            </div>
+          </fieldset>
+
+          <div class="justifyLabel submit">
+            <input type="button" value="Flap" class="flap" />
+            <div>
+              <input type="checkbox" name="ephemeral" id="ephemeral" onchange="document.getElementById('ephemeralTime').disabled = !this.checked;"/>
+              <label for="ephemeral">Ephemeral</label>
+              <input disabled type="number" min="1" max="600" id="ephemeralTime" name="ephemeral" value="5" style="width: 50px;"/>
+              <label>sec</label>
+            </div>
+          </div>
+      </fieldset>     
+    </div> 
+    </h1>
+    <!--[if lt IE 7]>
+      <p class="browsehappy">You are using an <strong>outdated</strong> browser. Please <a href="#">upgrade your browser</a> to improve your experience.</p>
+    <![endif]-->
+    
+    <script src="" async defer></script>
+  </body>
+</html>

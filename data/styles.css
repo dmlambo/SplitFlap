@@ -1,0 +1,40 @@
+.sfFont {
+  font-family:Courier New,Courier,monospace;
+}
+.sfChar {
+  font-size:50px;
+  color:#ffffff;
+  background-color:#000000;
+}
+.sfSpace {
+  font-size:8px;
+  background-color:#ffffff;
+}
+legend {
+  font-family:Courier New,Courier,monospace;
+  font-size:16px;
+}
+.modeSelector {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+.modeLabel {
+  font-family:Courier New,Courier,monospace;
+  font-size:16px;
+  padding: 8px;
+}
+.justifyLabel {
+  font-family:Courier New,Courier,monospace;
+  font-size:16px;
+  padding: 10px;
+}
+.submit {
+  display: flex;
+  justify-content: space-between;
+}
+
+.flap {
+  font-family:Courier New,Courier,monospace;
+  font-size:20px;
+}

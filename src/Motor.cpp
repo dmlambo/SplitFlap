@@ -34,14 +34,18 @@ bool motorStalled = false;
 void doMotorISR() {
   if (motorEnabled) {
     if (motorRunning) {
-      if (((motorStep + MOTOR_STEPS) % MOTOR_STEPS) == motorTarget) { // If modulus performance is an issue we can change MOTOR_STEPS to 4096
+
+      // Since we subtract the zero offset, the last flap may actually be in between the zero point and true zero, where motorStep is negative
+      // Furthermore, there's no difference between a target of 0 and calibration, and we calibrate every time we pass the hall
+      if ((motorTarget == 0 && motorStep == 0) || 
+          (motorTarget != 0 && (motorStep == motorTarget || motorStep + MOTOR_STEPS == motorTarget))) {
         motorRunning = motorEnabled = false;
       } else {
         motorState++;
         motorState %= 8;
         motorStep++;
 
-        if (motorStep == MOTOR_STEPS - 1) { // Done a whole rotation without seeing the hall sensor. We've stalled.
+        if (motorStep == MOTOR_STEPS + MOTOR_STALL_STEPS) { // Done a whole rotation without seeing the hall sensor. We've stalled.
           motorStalled = true;
           motorRunning = motorEnabled = false;
         }
@@ -75,6 +79,7 @@ void doMotorISR() {
     if (!waitForLow) {
       motorStep = -Config.zeroOffset;
       motorCalibrated = true;
+      waitForLow = true;
     }
   }
   if (hallDebounce < 0) {
@@ -111,7 +116,7 @@ void motorMoveToFlap(unsigned int flap) {
   }
 
   noInterrupts();
-  motorTarget = flap * ((float)MOTOR_STEPS / MOTOR_FLAPS);
+  motorTarget = (int)((float)flap * ((float)MOTOR_STEPS / (float)MOTOR_FLAPS));
   motorEnabled = true;
   interrupts();
   enableMotorTimer();

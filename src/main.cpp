@@ -2,12 +2,18 @@
 
 #include <Wire.h>
 #include <EEPROM.h>
+#include <LittleFS.h>
+
+#include <ESPAsyncWebServer.h>
+#include <WiFiManager.h>
 
 #include "Config.h"
 #include "Commands.h"
 
 #include "Motor.h"
+#include "WebServer.h"
 
+#include <ESP8266mDNS.h>
 #include <flash_hal.h>
 
 ModuleConfig Config = { .isMaster = 0, .address = 0xFE, .zeroOffset = 0xFE };
@@ -50,6 +56,11 @@ void setup() {
   while (!Serial) { yield(); }
 
   delay(500);
+  
+  if(!LittleFS.begin()){
+    Serial.println("An Error has occurred while mounting LittleFS");
+    return;
+  }  
 
   Serial.println("Welcome to Dave's Split Flap Experience!");
 
@@ -75,6 +86,20 @@ void setup() {
     Wire.begin();
     Wire.setClock(I2C_FREQUENCY);
     Wire.setClockStretchLimit(40000);
+
+    WiFiManager wifiManager;
+
+    Serial.println("Connecting to WiFi...");
+    WiFi.setHostname(WIFI_HOSTNAME);
+    wifiManager.autoConnect(WIFI_AP_NAME);
+    Serial.println("Success!");
+
+    if (!MDNS.begin(WIFI_MDNS_HOSTNAME)) {
+      Serial.println("Failed to create MDNS responder");
+    }
+
+    Serial.println("Initializing web server");
+    WebServerInit();
   } else {
       Serial.print("Starting in slave mode at address "); Serial.println((int)Config.address);
       Wire.begin(Config.address);

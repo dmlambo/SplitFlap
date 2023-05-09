@@ -4,6 +4,7 @@
 #define MOTOR_IN4 D8
 
 #define MOTOR_STEPS 4076 // Half step
+#define MOTOR_STALL_STEPS 200
 
 #define HALL D0
 #define HALL_DEBOUNCE 5
@@ -11,6 +12,10 @@
 #define MOTOR_FLAPS 45
 
 #define I2C_FREQUENCY 25000
+
+#define WIFI_MDNS_HOSTNAME "splitflap"
+#define WIFI_HOSTNAME "SplitFlapDisplay"
+#define WIFI_AP_NAME "SplitFlapSetupAP"
 
 struct ModuleConfig {
   bool isMaster;
