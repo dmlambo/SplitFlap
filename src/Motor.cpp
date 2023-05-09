@@ -6,13 +6,13 @@
 
 const bool PinStates[][4] = {
   { true, false, false, false },
-  { true, true, false, false },
-  { false, true, false, false },
-  { true, true, true, false },
-  { false, false, true, false },
-  { false, false, true, true },
-  { false, false, false, true },
   { true, false, false, true },
+  { false, false, false, true },
+  { false, false, true, true },
+  { false, false, true, false },
+  { true, true, true, false },
+  { false, true, false, false },
+  { true, true, false, false },
 };
 
 const char Pins[] = { MOTOR_IN1, MOTOR_IN2, MOTOR_IN3, MOTOR_IN4 };
@@ -20,26 +20,34 @@ const char Pins[] = { MOTOR_IN1, MOTOR_IN2, MOTOR_IN3, MOTOR_IN4 };
 static unsigned char motorState = 0;
 
 // These are separated into two variables since the timer interrupt runs constantly, and we don't ever want to skip a step
-// if we enable the motor too soon before the next interrupt
+// if we enable the motor too soon before the next interrupt, by, for instance, setting another target mid-turn
 static bool motorEnabled = false;
 static bool motorRunning = false;
 static int motorStep = 0;
 static int motorTarget = 0;
 static int hallDebounce = 0;
+static int waitForLow = false;
 
 bool motorCalibrated = false;
+bool motorStalled = false;
 
 void doMotorISR() {
   if (motorEnabled) {
     if (motorRunning) {
-      if (motorStep == motorTarget) {
+      if (((motorStep + MOTOR_STEPS) % MOTOR_STEPS) == motorTarget) { // If modulus performance is an issue we can change MOTOR_STEPS to 4096
         motorRunning = motorEnabled = false;
       } else {
         motorState++;
         motorState %= 8;
         motorStep++;
+
+        if (motorStep == MOTOR_STEPS - 1) { // Done a whole rotation without seeing the hall sensor. We've stalled.
+          motorStalled = true;
+          motorRunning = motorEnabled = false;
+        }
       }
     } else {
+      // Advance the next time around
       motorRunning = true;
     }
     digitalWrite(Pins[0], PinStates[motorState][0]);
@@ -52,6 +60,7 @@ void doMotorISR() {
     digitalWrite(Pins[1], false);
     digitalWrite(Pins[2], false);
     digitalWrite(Pins[3], false);
+    disableMotorTimer();
   }
 
   if (!digitalRead(HALL)) {
@@ -60,26 +69,32 @@ void doMotorISR() {
     hallDebounce--;
   }
 
-  if (hallDebounce > 5) {
-    hallDebounce = 5;
-    // This implies that at startup, even if we're next to the hall sensor, we'll need to go around again.
-    if (motorStep > 400) {
+  if (hallDebounce > HALL_DEBOUNCE) {
+    hallDebounce = HALL_DEBOUNCE;
+    // At startup, even if we're next to the hall sensor, we'll need to go around again
+    if (!waitForLow) {
       motorStep = -Config.zeroOffset;
       motorCalibrated = true;
     }
   }
   if (hallDebounce < 0) {
+    waitForLow = false;
     hallDebounce = 0;
   }
 }
 
 void motorCalibrate() {
+  Serial.println("Calibrating...");
+
   noInterrupts();
   motorStep = 1;
   motorTarget = 0;
   motorEnabled = true;
   motorCalibrated = false;
+  waitForLow = !digitalRead(HALL);
+  hallDebounce = waitForLow ? HALL_DEBOUNCE : 0;
   interrupts();
+  enableMotorTimer();
 }
 
 void motorSetRPM(int rpm) {
@@ -90,11 +105,23 @@ void motorSetRPM(int rpm) {
   timer1_write(timerValue);
 }
 
+void motorMoveToFlap(unsigned int flap) {
+  if (flap >= MOTOR_FLAPS) {
+    flap = 0;
+  }
+
+  noInterrupts();
+  motorTarget = flap * ((float)MOTOR_STEPS / MOTOR_FLAPS);
+  motorEnabled = true;
+  interrupts();
+  enableMotorTimer();
+}
+
 void motorInit() {
-  timer1_disable();
+  disableMotorTimer();
   timer1_attachInterrupt(doMotorISR);
   motorSetRPM(Config.rpm);
-  enableMotorTimer();
+  //enableMotorTimer();
 }
 
 void disableMotorTimer() {
@@ -103,4 +130,11 @@ void disableMotorTimer() {
 
 void enableMotorTimer() {
   timer1_enable(TIM_DIV16, TIM_EDGE, TIM_LOOP);
+}
+
+void motorDebugPrint() {
+  static int i = 0;
+  if (!(i++ % 1000)) {
+    Serial.println(motorStep);
+  }
 }

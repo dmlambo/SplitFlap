@@ -6,8 +6,11 @@
 #define MOTOR_STEPS 4076 // Half step
 
 #define HALL D0
+#define HALL_DEBOUNCE 5
 
-#define I2C_FREQUENCY 100000
+#define MOTOR_FLAPS 45
+
+#define I2C_FREQUENCY 25000
 
 struct ModuleConfig {
   bool isMaster;

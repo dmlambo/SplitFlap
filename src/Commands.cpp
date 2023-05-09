@@ -1,6 +1,7 @@
 #include <Arduino.h>
 
 #include <EEPROM.h>
+#include <Wire.h>
 
 #include "Config.h"
 
@@ -50,7 +51,6 @@ void setZeroOffsetCommand(String address, String two, String three, String four)
   EEPROM.commit();
 
   Serial.print("New zero point set to "); Serial.println(newZero);
-  Serial.println("Calibrating...");
   motorCalibrate();
 }
 
@@ -82,9 +82,6 @@ void setMasterCommand(String address, String two, String three, String four) {
   memcpy(EEPROM.getDataPtr(), &Config, sizeof(ModuleConfig));
   EEPROM.commit();
 
-  Serial.println("Even Here?");
-  Serial.flush();
-
   if (newMaster) {
     Serial.println("Now set to master.");
   } else {
@@ -96,20 +93,47 @@ void setMasterCommand(String address, String two, String three, String four) {
 }
 
 void sendToSlaveCommand(String address, String two, String three, String four) {
-  Serial.println("Send to slave not yet implemented");
+  int slaveAddr = address.toInt();
+
+  if (slaveAddr < 1 || slaveAddr > 255) {
+    Serial.println("Failed: Invalid slave address");
+    return;
+  }
+
+  String xmitString = (two + " " + three + " " + four + "\n");
+  const char * xmit = xmitString.c_str();
+
+  Serial.print("Sending data to slave "); Serial.print(slaveAddr); Serial.println(":");
+  Serial.println(xmit);
+
+  Wire.beginTransmission(slaveAddr);
+  Wire.write(xmit);
+  Wire.endTransmission();
 }
 
 void calibrateMotorCommand(String one, String two, String three, String four) {
-  Serial.println("Calibrating motor...");
   motorCalibrate();
 }
 
+void moveToFlapCommand(String flap, String two, String three, String four) {
+  int newFlap = flap.toInt();
+
+  if (newFlap >= MOTOR_FLAPS || newFlap < 0) {
+    Serial.println("Failed: Flap number out of range (0-44)");
+    return;
+  }
+
+  motorMoveToFlap(newFlap);
+}
+
 static Command commands[] = {
+  { .prefix = 'f', .description = "Move to flap (f [0-44])", .function = moveToFlapCommand },
   { .prefix = 'm', .description = "Set master mode (m [0|1])", .function = setMasterCommand },
   { .prefix = 'a', .description = "Set address (a [1-255])", .function = setAddressCommand },
   { .prefix = 'z', .description = "Set zero point offset (z [0-255])", .function = setZeroOffsetCommand },
   { .prefix = 'c', .description = "Calibrate motor to 0 position", calibrateMotorCommand },
   { .prefix = 's', .description = "Speed in RPM (s [1-30])", setSpeedCommand },
+  { .prefix = 'x', .description = "Send command to slave (x [1-255] ...)", sendToSlaveCommand },
   { .prefix = 'r', .description = "Reset", .function = resetCommand },
 };
 
@@ -128,11 +152,14 @@ void handleCommand(String command) {
       char scan[] = "X %s %s %s %s";
       char args[4][20];
 
+      memset(args, 0, sizeof(args));
+
       scan[0] = commands[i].prefix;
 
       // My kingdom for split.
       sscanf(command.c_str(), scan, &args[0], &args[1], &args[2], &args[3]);
 
+      // If our timer is running, SPI has an issue writing to flash... likely I2C will have an issue too.
       disableMotorTimer();
       commands[i].function(args[0], args[1], args[2], args[3]);
       enableMotorTimer();
