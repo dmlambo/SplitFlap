@@ -1,2 +1,2 @@
 void printCommandHelp();
-void handleCommand(String command);
+void handleCommand(char* command);

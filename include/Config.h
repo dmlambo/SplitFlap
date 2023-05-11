@@ -12,6 +12,7 @@
 #define MOTOR_FLAPS 45
 
 #define I2C_FREQUENCY 25000
+#define I2C_BUFF_LEN 256
 
 #define WIFI_MDNS_HOSTNAME "splitflap"
 #define WIFI_HOSTNAME "SplitFlapDisplay"

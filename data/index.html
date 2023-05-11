@@ -63,11 +63,11 @@
           </fieldset>
 
           <div class="justifyLabel submit">
-            <input type="button" value="Flap" class="flap" />
+            <input type="button" value="Flap" class="flap" onclick="applyTilt();"/>
             <div>
               <input type="checkbox" name="ephemeral" id="ephemeral" onchange="document.getElementById('ephemeralTime').disabled = !this.checked;"/>
               <label for="ephemeral">Ephemeral</label>
-              <input disabled type="number" min="1" max="600" id="ephemeralTime" name="ephemeral" value="5" style="width: 50px;"/>
+              <input disabled type="number" min="1" max="3600" id="ephemeralTime" name="ephemeral" value="5" style="width: 50px;"/>
               <label>sec</label>
             </div>
           </div>
@@ -78,6 +78,6 @@
       <p class="browsehappy">You are using an <strong>outdated</strong> browser. Please <a href="#">upgrade your browser</a> to improve your experience.</p>
     <![endif]-->
     
-    <script src="" async defer></script>
+    <script src="tilt.js" async defer></script>
   </body>
 </html>

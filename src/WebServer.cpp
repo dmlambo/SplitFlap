@@ -1,3 +1,7 @@
+#include <ArduinoJson.h>
+#include <ESPAsyncWebServer.h>
+#include <LittleFS.h>
+
 #include "WebServer.h"
 
 AsyncWebServer* server = NULL;
@@ -8,10 +12,6 @@ void notFound(AsyncWebServerRequest *request) {
 
 void WebServerInit() {
   server = new AsyncWebServer(80);
-
-  server->on("/", HTTP_GET, [](AsyncWebServerRequest *request){
-      request->send(200, "text/plain", "Hello, world");
-  });
 
   // Send a GET request to <IP>/sensor/<number>
   server->on("^\\/sensor\\/([0-9]+)$", HTTP_GET, [] (AsyncWebServerRequest *request) {
@@ -26,6 +26,8 @@ void WebServerInit() {
       request->send(200, "text/plain", "Hello, sensor: " + sensorNumber + ", with action: " + action);
   });
 
+  server->serveStatic("/", LittleFS, "/").setDefaultFile("index.html");
+  
   server->onNotFound(notFound);
 
   server->begin();
