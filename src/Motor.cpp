@@ -2,6 +2,7 @@
 
 #include "Config.h"
 
+#include "Communication.h"
 #include "Motor.h"
 
 const bool PinStates[][4] = {
@@ -33,19 +34,21 @@ bool motorStalled = false;
 
 void doMotorISR() {
   if (motorEnabled) {
+    if (deviceLastStatus != MODULE_CALIBRATING) deviceLastStatus = MODULE_MOVING;
     if (motorRunning) {
-
       // Since we subtract the zero offset, the last flap may actually be in between the zero point and true zero, where motorStep is negative
       // Furthermore, there's no difference between a target of 0 and calibration, and we calibrate every time we pass the hall
       if ((motorTarget == 0 && motorStep == 0) || 
           (motorTarget != 0 && (motorStep == motorTarget || motorStep + MOTOR_STEPS == motorTarget))) {
         motorRunning = motorEnabled = false;
+        deviceLastStatus = MODULE_OK;
       } else {
         motorState++;
         motorState %= 8;
         motorStep++;
 
         if (motorStep == MOTOR_STEPS + MOTOR_STALL_STEPS) { // Done a whole rotation without seeing the hall sensor. We've stalled.
+          deviceLastStatus = MODULE_STALLED;
           motorStalled = true;
           motorRunning = motorEnabled = false;
         }
@@ -90,6 +93,7 @@ void doMotorISR() {
 
 void motorCalibrate() {
   Serial.println("Calibrating...");
+  deviceLastStatus = MODULE_CALIBRATING;
 
   noInterrupts();
   motorStep = 1;

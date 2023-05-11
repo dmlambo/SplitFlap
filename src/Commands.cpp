@@ -7,9 +7,6 @@
 
 #include "Motor.h"
 
-#define DEFTOSTR(x) #x
-#define DEFTOLIT(x) DEFTOSTR(x)
-
 typedef void (*commandFunc)(unsigned char, const char**);
 
 struct Command {
@@ -42,7 +39,7 @@ void setAddressCommand(unsigned char nArgs, const char** args) {
   int slaveAddr = 0;
 
   // 0-7 and 0x78-0x7F are I2C reserved
-  if (!argToIntRange(args[1], 8, 120, &slaveAddr)) {
+  if (!argToIntRange(args[1], I2C_DEVADDR_MIN, I2C_DEVADDR_MAX, &slaveAddr)) {
     Serial.println("Failed: Agument not in range 8-120");
     return;
   }
@@ -114,8 +111,8 @@ void setMasterCommand(unsigned char nArgs, const char** args) {
 void sendToSlaveCommand(unsigned char nArgs, const char** args) {
   int slaveAddr = 0;
 
-  if (!argToIntRange(args[1], 0, 120, &slaveAddr)) {
-    Serial.println("Failed: Argument not in range 0-120");
+  if (!argToIntRange(args[1], 0, I2C_DEVADDR_MAX, &slaveAddr)) {
+    Serial.println("Failed: Argument not in range 0-" DEFTOLIT(I2C_DEVADDR_MAX));
     return;
   }
 
@@ -151,11 +148,11 @@ static Command commands[] = {
   { .prefix = "h", .nArgs = 0, .description = "Show this help", .function = showHelpCommand },
   { .prefix = "f", .nArgs = 1, .description = "Move to flap (f [0-" DEFTOLIT(MOTOR_FLAPS - 1) "])", .function = moveToFlapCommand },
   { .prefix = "m", .nArgs = 1, .description = "Set master mode (m [0|1])", .function = setMasterCommand },
-  { .prefix = "a", .nArgs = 1, .description = "Set address (a [8-120])", .function = setAddressCommand },
+  { .prefix = "a", .nArgs = 1, .description = "Set address (a [" DEFTOLIT(I2C_DEVADDR_MIN) "-" DEFTOLIT(I2C_DEVADDR_MAX) "])", .function = setAddressCommand },
   { .prefix = "z", .nArgs = 1, .description = "Set zero point offset (z [0-255])", .function = setZeroOffsetCommand },
   { .prefix = "c", .nArgs = 0, .description = "Calibrate motor to 0 position", calibrateMotorCommand },
   { .prefix = "s", .nArgs = 1, .description = "Speed in RPM (s [1-30])", setSpeedCommand },
-  { .prefix = "x", .nArgs = 2, .description = "Send command to slave (x [0-120] \"...\")", sendToSlaveCommand },
+  { .prefix = "x", .nArgs = 2, .description = "Send command to slave (x [0-" DEFTOLIT(I2C_DEVADDR_MAX) "] \"...\")", sendToSlaveCommand },
   { .prefix = "r", .nArgs = 0, .description = "Reset", .function = resetCommand },
 };
 

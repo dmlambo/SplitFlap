@@ -1,3 +1,5 @@
+#pragma once
+
 void motorInit();
 void motorSetRPM(int rpm);
 void motorCalibrate();

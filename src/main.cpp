@@ -10,6 +10,7 @@
 
 #include "Config.h"
 #include "Commands.h"
+#include "Communication.h"
 
 #include "Motor.h"
 #include "WebServer.h"
@@ -18,31 +19,6 @@
 #include <flash_hal.h>
 
 ModuleConfig Config = { .isMaster = 0, .address = 0xFE, .zeroOffset = 0xFE };
-
-char i2cCommand[I2C_BUFF_LEN];
-bool i2cOverflow = false;
-
-void onReceiveI2C(size_t nBytes) {
-  static int buffLoc = 0;
-  static char buff[I2C_BUFF_LEN] = { 0 };
-
-  // We only read strings, and there may be, potentially, more than one string in the buffer.
-  while (Wire.available()) { 
-    buff[buffLoc] = Wire.read();
-    if (buff[buffLoc] == 0 || buff[buffLoc] == '\n' || buff[buffLoc] == '\r') {
-      strcpy(i2cCommand, buff);
-      i2cCommand[buffLoc] = 0; // Remove newline
-      buffLoc = 0;
-      return;
-    } else {
-      buffLoc++;
-      if (buffLoc > I2C_BUFF_LEN - 1) {
-        i2cOverflow = true;
-        buffLoc = 0;
-      }
-    }
-  }
-}
 
 void setup() {
   pinMode(MOTOR_IN1, OUTPUT);
@@ -105,12 +81,17 @@ void setup() {
     WebServerInit();
 
     MDNS.addService("http", "tcp", 80);
+
+    // Find all other devices
+    enumerateModules();
+    
+    Serial.print("Found "); Serial.print(nKnownModules); Serial.println(" other I2C devices.");
   } else {
       Serial.print("Starting in slave mode at address "); Serial.println((int)Config.address);
       Wire.begin(Config.address);
       Wire.setClock(I2C_FREQUENCY);
       Wire.setClockStretchLimit(40000);
-      Wire.onReceive(onReceiveI2C);
+      Wire.onRequest(onRequestI2C);
   }
 
   motorInit();
@@ -123,26 +104,18 @@ void loop() {
   if (Serial.available()) {
     char commandBuff[128];
     commandBuff[Serial.readBytesUntil('\0', commandBuff, sizeof(commandBuff))] = 0;
-
     handleCommand(commandBuff);
   }
 
-  noInterrupts();
-  char i2cCommandCopy[I2C_BUFFER_LENGTH];
-  if (*i2cCommand) {
-    strcpy(i2cCommandCopy, i2cCommand);
-    *i2cCommand = 0;
-  } else {
-    *i2cCommandCopy = 0;
-  }
-  interrupts();
+  char* i2cCommand = i2cReadCommand();
 
-  if (*i2cCommandCopy) {
+  if (i2cCommand && *i2cCommand) {
     Serial.println("Reveived I2C command...");
-    handleCommand(i2cCommandCopy);
+    handleCommand(i2cCommand);
   }
 
   if (i2cOverflow) {
+    deviceLastStatus = MODULE_OVERFLOW;
     i2cOverflow = false;
     Serial.println("I2C command buffer overflow.");
   }

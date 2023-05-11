@@ -1,6 +1,9 @@
 #include <ArduinoJson.h>
 #include <ESPAsyncWebServer.h>
 #include <LittleFS.h>
+#include <Wire.h>
+
+#include "Communication.h"
 
 #include "WebServer.h"
 
@@ -12,6 +15,29 @@ void notFound(AsyncWebServerRequest *request) {
 
 void WebServerInit() {
   server = new AsyncWebServer(80);
+
+  server->on("/status", HTTP_GET, [] (AsyncWebServerRequest *request) {
+      char buff[1024];
+      DynamicJsonDocument doc(1024);
+      doc["health"] = "OK";
+
+      doc["modules"][0]["address"] = 0; // Master
+      doc["modules"][0]["status"] = StatusStr[deviceLastStatus];
+
+      for (int i = 0; i < nKnownModules; i++) {
+        doc["modules"][i+1]["address"] = knownModules[i];
+        char nRead = Wire.requestFrom(knownModules[i], 1, true);
+        if (nRead) {        
+          doc["modules"][i+1]["status"] = StatusStr[Wire.read()];       
+        } else {
+          doc["modules"][i+1]["status"] = MODULE_UNAVAILABLE;       
+        }
+        //yield();
+      }
+
+      serializeJsonPretty(doc, buff, 1024);
+      request->send(200, "application/json", buff);
+  });
 
   // Send a GET request to <IP>/sensor/<number>
   server->on("^\\/sensor\\/([0-9]+)$", HTTP_GET, [] (AsyncWebServerRequest *request) {
