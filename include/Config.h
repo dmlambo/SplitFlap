@@ -23,15 +23,25 @@
 #define WIFI_HOSTNAME "SplitFlapDisplay"
 #define WIFI_AP_NAME "SplitFlapSetupAP"
 
+#define DISPLAY_MAX_CHARS 128
+#define DISPLAY_MAX_MODULES 32
+
 // Helper to concatenate literal strings from defines
 #define DEFTOSTR(x, ...) #x
 #define DEFTOLIT(x, ...) DEFTOSTR(x)
 
+#define CONFIG_MAGIC 0xFA7FEE75
+#define CONFIG_TZSIZE 63
+
 struct ModuleConfig {
+  unsigned int magic; // Check for first-time configuration, or change of size of this struct
   bool isMaster;
   char address; // i2c address
   char zeroOffset; // how many steps after hitting the hall effect marks the zero point (only positive)
   char rpm;
+  char timeZone[CONFIG_TZSIZE+1]; // plus null
+
+  unsigned char charMap[256]; // Mapping of characters to flap numbers
 };
 
 extern ModuleConfig Config;

@@ -17,7 +17,6 @@ extern Status deviceLastStatus;
 extern unsigned char knownModules[];
 extern unsigned char nKnownModules;
 
-
 void enumerateModules();
 void onRequestI2C();
 char* i2cReadCommand();

@@ -5,12 +5,13 @@
 #include <LittleFS.h>
 
 //#include <ESPAsyncWebServer.h>
-#include <ezTime.h>
 #include <WiFiManager.h>
+#include <ESP8266TrueRandom.h>
 
 #include "Config.h"
 #include "Commands.h"
 #include "Communication.h"
+#include "Display.h"
 
 #include "Motor.h"
 #include "WebServer.h"
@@ -18,50 +19,108 @@
 #include <ESP8266mDNS.h>
 #include <flash_hal.h>
 
-ModuleConfig Config = { .isMaster = 0, .address = 0xFE, .zeroOffset = 0xFE };
+// Default config
+ModuleConfig Config = { 
+  .magic = CONFIG_MAGIC + sizeof(ModuleConfig), 
+  .isMaster = 0, 
+  .address = 0, 
+  .zeroOffset = 0,
+  .rpm = 15, 
+  .timeZone = { 0 }, // Use whichever NTP decides for us
+  #include "DefaultCharMap.inc" 
+};
 
 void setup() {
+  bool firstBoot = true; 
+
   pinMode(MOTOR_IN1, OUTPUT);
   pinMode(MOTOR_IN2, OUTPUT);
   pinMode(MOTOR_IN3, OUTPUT);
   pinMode(MOTOR_IN4, OUTPUT);
 
-  pinMode(HALL, INPUT_PULLUP);
+  digitalWrite(MOTOR_IN1, 0);
+  digitalWrite(MOTOR_IN2, 0);
+  digitalWrite(MOTOR_IN3, 0);
+  digitalWrite(MOTOR_IN4, 0);
 
-  digitalWrite(MOTOR_IN1, 1);
+  pinMode(HALL, INPUT_PULLUP);
 
   Serial.begin(57600);
 
   while (!Serial) { yield(); }
 
-  delay(500);
+  Serial.println();
+  Serial.println("Welcome to Dave's Split Flap Experience!");
 
   if(!LittleFS.begin()){
     Serial.println("An Error has occurred while mounting LittleFS");
     return;
   }  
 
-  Serial.println("Welcome to Dave's Split Flap Experience!");
-
   EEPROM.begin(sizeof(ModuleConfig));
-  memcpy(&Config, EEPROM.getConstDataPtr(), sizeof(ModuleConfig)); // On ESP8266 the EEPROM is mirrored in ram
 
-  if (Config.rpm > 30) {
-    Config.rpm = 30;
+  // Valid saved config
+  if (((unsigned int *)EEPROM.getConstDataPtr())[0] == CONFIG_MAGIC + sizeof(ModuleConfig)) {
+    firstBoot = false;
+    memcpy(&Config, EEPROM.getConstDataPtr(), sizeof(ModuleConfig));
+
+    Serial.println("Active configuration loaded from flash:");
+  } else {
+    // First bootup
+    Serial.println("First time boot or config size mismatch, using defaults:");
   }
 
-  Serial.println("Active configuration:");
   Serial.print("isMaster: "); Serial.println(Config.isMaster);
   Serial.print("address: "); Serial.println((int)Config.address);
   Serial.print("zeroOffset: "); Serial.println((int)Config.zeroOffset);
   Serial.print("rpm: "); Serial.println((int)Config.rpm);
 
+  if (Config.isMaster) {
+    Serial.print("timeZone: "); Serial.println(*Config.timeZone ? Config.timeZone : "<None set>");
+  }
+
   Serial.println();
 
   printCommandHelp();
 
+  // On first flash, we start in slave mode, but as a master I2C device. We wait a random amount of time
+  // and try to assign our random address by first requesting data from said address. If no one responds
+  // we keep it, if someone responds we move onto another address. Once we find an empty address, we 
+  // write the config and reboot. However, we need to give other modules a time to do this entire
+  // song and dance, so that we ensure we take control of the bus at some point (there's no arbitration)
+  // and give others a chance to assign their own address and reboot into slave mode.
+  if (firstBoot) {
+    Serial.print("Searching for unused I2C address between " DEFTOLIT(I2C_DEVADDR_MIN+DISPLAY_MAX_MODULES) " and " DEFTOLIT(I2C_DEVADDR_MAX));
+
+    Wire.begin();
+
+    Config.address = ESP8266TrueRandom.random(I2C_DEVADDR_MIN+DISPLAY_MAX_MODULES, I2C_DEVADDR_MAX);
+
+    bool addrFound = false;
+    int attempts = 100;
+
+    while (!addrFound && attempts--) { 
+      delayMicroseconds(ESP8266TrueRandom.random(0, 40000));
+      unsigned char bytesRead = Wire.requestFrom((int)Config.address, (int)1);
+      if (bytesRead) {
+        Serial.print("Found module at address "); Serial.println((int)Config.address);
+        attempts = 100;
+        Config.address = ESP8266TrueRandom.random(I2C_DEVADDR_MIN+32, I2C_DEVADDR_MAX);
+      }
+    }
+
+    Serial.print("Found unused address "); Serial.println((int)Config.address);
+    Serial.println("Writing config...");
+    memcpy(EEPROM.getDataPtr(), &Config, sizeof(ModuleConfig));
+    EEPROM.commit();
+    Serial.println("Rebooting...");
+    Serial.flush();
+    ESP.reset();
+  }
+
   if (Config.isMaster) {
     Serial.println("Starting in master mode.");
+
     Wire.begin();
     Wire.setClock(I2C_FREQUENCY);
     Wire.setClockStretchLimit(40000);
@@ -134,6 +193,6 @@ void loop() {
   // When in master mode, we run extra services; the http server, mDNS, time, etc.
   if (Config.isMaster) {
     MDNS.update();
-    events(); // ezTime events
+    displayEvents();
   }
 }

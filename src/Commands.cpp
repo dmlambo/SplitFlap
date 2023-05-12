@@ -6,6 +6,7 @@
 #include "Config.h"
 
 #include "Motor.h"
+#include "Display.h"
 
 typedef void (*commandFunc)(unsigned char, const char**);
 
@@ -14,6 +15,7 @@ struct Command {
   unsigned char nArgs;
   const char* description;
   commandFunc function;
+  bool master;
 };
 
 void printCommandHelp();
@@ -32,6 +34,15 @@ bool argToIntRange(const char* arg, int min, int max, int* out) {
 
 void resetCommand(unsigned char nArgs, const char** args) {
   Serial.println("Resetting...");
+  ESP.reset();
+}
+
+void factoryResetCommand(unsigned char nArgs, const char** args) {
+  Serial.println("Resetting to factory defaults...");
+  Config.magic = ~CONFIG_MAGIC;
+  memcpy(EEPROM.getDataPtr(), &Config, sizeof(ModuleConfig));
+  EEPROM.commit();
+  Serial.flush();
   ESP.reset();
 }
 
@@ -140,29 +151,67 @@ void moveToFlapCommand(unsigned char nArgs, const char** args) {
   motorMoveToFlap(newFlap);
 }
 
+void setTimezoneCommand(unsigned char nArgs, const char** args) {
+  if (strlen(args[0]) > CONFIG_TZSIZE) {
+    Serial.println("Failed: Input too long (max" DEFTOLIT(CONFIG_TZSIZE) ")");
+    return;
+  }
+  
+  Serial.print("Setting timezone to "); Serial.println(args[1]);
+  displaySetTimeZone(args[1]);
+  strncpy(Config.timeZone, args[1], CONFIG_TZSIZE);
+  memcpy(EEPROM.getDataPtr(), &Config, sizeof(ModuleConfig));
+  EEPROM.commit();  
+}
+
+void displayCommand(unsigned char nArgs, const char** args) {
+  int ephemeral;
+  int time;
+
+  if (!argToIntRange(args[2], 0, 3600, &ephemeral)) {
+    Serial.println("Failed: Ephemeral out of range 0 to 3600");
+    return;
+  }
+
+  if (!argToIntRange(args[3], 0, 1, &time)) {
+    Serial.println("Failed: Date takes 1 or 0");
+    return;
+  }
+
+  displayMessage(args[1], ephemeral, time);
+}
+
 void showHelpCommand(unsigned char nArgs, const char** args) {
   printCommandHelp();
 }
 
 static Command commands[] = {
-  { .prefix = "h", .nArgs = 0, .description = "Show this help", .function = showHelpCommand },
-  { .prefix = "f", .nArgs = 1, .description = "Move to flap (f [0-" DEFTOLIT(MOTOR_FLAPS - 1) "])", .function = moveToFlapCommand },
-  { .prefix = "m", .nArgs = 1, .description = "Set master mode (m [0|1])", .function = setMasterCommand },
-  { .prefix = "a", .nArgs = 1, .description = "Set address (a [" DEFTOLIT(I2C_DEVADDR_MIN) "-" DEFTOLIT(I2C_DEVADDR_MAX) "])", .function = setAddressCommand },
-  { .prefix = "z", .nArgs = 1, .description = "Set zero point offset (z [0-255])", .function = setZeroOffsetCommand },
-  { .prefix = "c", .nArgs = 0, .description = "Calibrate motor to 0 position", calibrateMotorCommand },
-  { .prefix = "s", .nArgs = 1, .description = "Speed in RPM (s [1-30])", setSpeedCommand },
-  { .prefix = "x", .nArgs = 2, .description = "Send command to slave (x [0-" DEFTOLIT(I2C_DEVADDR_MAX) "] \"...\")", sendToSlaveCommand },
-  { .prefix = "r", .nArgs = 0, .description = "Reset", .function = resetCommand },
+  { .prefix = "h", .nArgs = 0, .description = "Show this help", .function = showHelpCommand, .master = false },
+  { .prefix = "f", .nArgs = 1, .description = "Move to flap (f [0-" DEFTOLIT(MOTOR_FLAPS - 1) "])", .function = moveToFlapCommand, .master = false },
+  { .prefix = "m", .nArgs = 1, .description = "Set master mode (m [0|1])", .function = setMasterCommand, .master = false },
+  { .prefix = "a", .nArgs = 1, .description = "Set address (a [" DEFTOLIT(I2C_DEVADDR_MIN) "-" DEFTOLIT(I2C_DEVADDR_MAX) "])", .function = setAddressCommand, .master = false },
+  { .prefix = "z", .nArgs = 1, .description = "Set zero point offset (z [0-255])", .function = setZeroOffsetCommand, .master = false },
+  { .prefix = "c", .nArgs = 0, .description = "Calibrate motor to 0 position", calibrateMotorCommand, .master = false },
+  { .prefix = "s", .nArgs = 1, .description = "Speed in RPM (s [1-30])", setSpeedCommand, .master = false },
+  { .prefix = "r", .nArgs = 0, .description = "Reset", .function = resetCommand, .master = false },
+  { .prefix = "msg", .nArgs = 3, .description = "Display message (msg \"message\" 10 0)", .function = displayCommand, .master = true },
+  { .prefix = "x", .nArgs = 2, .description = "Send command to slave (x [0-" DEFTOLIT(I2C_DEVADDR_MAX) "] \"...\")", sendToSlaveCommand, .master = true },
+  { .prefix = "tz", .nArgs = 1, .description = "Set POSIX timezone (tz \"Africa/Bamako\")", setTimezoneCommand, .master = true },
+  { .prefix = "frfrfr", .nArgs = 0, .description = "Factory reset", .function = factoryResetCommand, .master = false },
 };
 
 void printCommandHelp() {
   Serial.println("Here are the commands available to you:");
   for (unsigned int i = 0; i < sizeof(commands) / sizeof(commands[0]); i++) {
-    char buff[255];
-    snprintf(buff, 255, "  %s    %s", commands[i].prefix, commands[i].description);
-    Serial.println(buff);
+    if (!commands[i].master || Config.isMaster) {
+      char buff[255];
+      snprintf(buff, 255, "  %10s    %s", commands[i].prefix, commands[i].description);
+      Serial.println(buff);
+    }
   }
+  if (!Config.isMaster) {
+    Serial.println("Some commands not available in slave mode not shown");
+  }  
 }
 
 // Modifies command argument!
@@ -221,7 +270,7 @@ void handleCommand(char* command) {
   }
 
   for (unsigned int i = 0; i < sizeof(commands) / sizeof(commands[0]); i++) {
-    if (!strcmp(args[0], commands[i].prefix)) {
+    if ((!commands[i].master || Config.isMaster) && !strcmp(args[0], commands[i].prefix)) {
       if (nArgs != commands[i].nArgs + 1) {
         Serial.print("Command takes "); Serial.print(commands[i].nArgs); Serial.println(" argument(s)!");
         return;

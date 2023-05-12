@@ -21,7 +21,7 @@ void WebServerInit() {
       DynamicJsonDocument doc(1024);
       doc["health"] = "OK";
 
-      doc["modules"][0]["address"] = 0; // Master
+      doc["modules"][0]["address"] = "master"; // Master
       doc["modules"][0]["status"] = StatusStr[deviceLastStatus];
 
       for (int i = 0; i < nKnownModules; i++) {
@@ -30,9 +30,8 @@ void WebServerInit() {
         if (nRead) {        
           doc["modules"][i+1]["status"] = StatusStr[Wire.read()];       
         } else {
-          doc["modules"][i+1]["status"] = MODULE_UNAVAILABLE;       
+          doc["modules"][i+1]["status"] = StatusStr[MODULE_UNAVAILABLE];
         }
-        //yield();
       }
 
       serializeJsonPretty(doc, buff, 1024);
