@@ -145,6 +145,7 @@ void setup() {
       Wire.setClock(I2C_FREQUENCY);
       Wire.setClockStretchLimit(40000);
       Wire.onRequest(onRequestI2C);
+      Wire.onReceive(onReceiveI2C);
   }
 
   motorInit();

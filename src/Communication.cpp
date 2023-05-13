@@ -33,7 +33,7 @@ char* i2cReadCommand() {
   static char buff[I2C_BUFF_LEN] = { 0 };
 
   // We only read strings, and there may be, potentially, more than one string in the buffer.
-  while (Wire.available()) { 
+  while (Wire.available()) {    
     buff[buffLoc] = Wire.read();
     if (buff[buffLoc] == 0 || buff[buffLoc] == '\n' || buff[buffLoc] == '\r') {
       buff[buffLoc] = 0; // Remove newline
@@ -53,4 +53,8 @@ char* i2cReadCommand() {
 // The only thing we return is our status
 void onRequestI2C() {
   Wire.write((unsigned char)deviceLastStatus);
+}
+
+void onReceiveI2C(size_t size) {
+  // Do nothing, we just need this here to coax the Wire library to work.
 }

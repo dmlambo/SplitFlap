@@ -19,4 +19,5 @@ extern unsigned char nKnownModules;
 
 void enumerateModules();
 void onRequestI2C();
+void onReceiveI2C(size_t size);
 char* i2cReadCommand();

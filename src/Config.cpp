@@ -2,6 +2,8 @@
 
 #include <ESP8266WiFi.h>
 
+#include "Communication.h"
+
 #include "Config.h"
 
 const char* wifiStatusStr(wl_status_t status) {
@@ -30,5 +32,11 @@ void printConfig() {
     Serial.println();
     Serial.print("WiFi status: "); Serial.println(wifiStatusStr(WiFi.status()));
     Serial.print("IP address: "); Serial.println(WiFi.localIP());
+    Serial.println();
+    Serial.print("Connected to "); Serial.print(nKnownModules); Serial.print(" other modules: ");
+    for (unsigned int i = 0; i < nKnownModules; i++) {
+      Serial.print((int)knownModules[i]); Serial.print(" ");
+    }
+    Serial.println();
   }
 }

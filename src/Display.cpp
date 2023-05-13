@@ -81,8 +81,10 @@ void displayEvents() {
     motorMoveToFlap(Config.charMap[(currentDisplayText[0]&127)-32]);
 
     for (unsigned int i = 0; i < nKnownModules; i++) {
+      char buff[6];
+      snprintf(buff, 6, "f %d", Config.charMap[(currentDisplayText[i+1]&127)-32]);
       Wire.beginTransmission(knownModules[i]);
-      Wire.write(Config.charMap[(currentDisplayText[i+1]&127)-32]);
+      Wire.write(buff);
       Wire.write(0);
       Wire.endTransmission();
     }
