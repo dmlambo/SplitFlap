@@ -156,7 +156,7 @@ void setTimezoneCommand(unsigned char nArgs, const char** args) {
     Serial.println("Failed: Input too long (max" DEFTOLIT(CONFIG_TZSIZE) ")");
     return;
   }
-  
+
   Serial.print("Setting timezone to "); Serial.println(args[1]);
   displaySetTimeZone(args[1]);
   strncpy(Config.timeZone, args[1], CONFIG_TZSIZE);
@@ -178,25 +178,30 @@ void displayCommand(unsigned char nArgs, const char** args) {
     return;
   }
 
-  displayMessage(args[1], ephemeral, time);
+  displayMessage(args[1], strlen(args[1]), ephemeral, time);
 }
 
 void showHelpCommand(unsigned char nArgs, const char** args) {
   printCommandHelp();
 }
 
+void showConfigCommand(unsigned char nArgs, const char** args) {
+  printConfig();
+}
+
 static Command commands[] = {
   { .prefix = "h", .nArgs = 0, .description = "Show this help", .function = showHelpCommand, .master = false },
-  { .prefix = "f", .nArgs = 1, .description = "Move to flap (f [0-" DEFTOLIT(MOTOR_FLAPS - 1) "])", .function = moveToFlapCommand, .master = false },
+  { .prefix = "f", .nArgs = 1, .description = "Move to flap (f [0-" DEFTOLIT((MOTOR_FLAPS - 1))"])", .function = moveToFlapCommand, .master = false },
   { .prefix = "m", .nArgs = 1, .description = "Set master mode (m [0|1])", .function = setMasterCommand, .master = false },
   { .prefix = "a", .nArgs = 1, .description = "Set address (a [" DEFTOLIT(I2C_DEVADDR_MIN) "-" DEFTOLIT(I2C_DEVADDR_MAX) "])", .function = setAddressCommand, .master = false },
   { .prefix = "z", .nArgs = 1, .description = "Set zero point offset (z [0-255])", .function = setZeroOffsetCommand, .master = false },
   { .prefix = "c", .nArgs = 0, .description = "Calibrate motor to 0 position", calibrateMotorCommand, .master = false },
   { .prefix = "s", .nArgs = 1, .description = "Speed in RPM (s [1-30])", setSpeedCommand, .master = false },
   { .prefix = "r", .nArgs = 0, .description = "Reset", .function = resetCommand, .master = false },
+  { .prefix = "cfg", .nArgs = 0, .description = "Show configuration", .function = showConfigCommand, .master = false },
   { .prefix = "msg", .nArgs = 3, .description = "Display message (msg \"message\" 10 0)", .function = displayCommand, .master = true },
   { .prefix = "x", .nArgs = 2, .description = "Send command to slave (x [0-" DEFTOLIT(I2C_DEVADDR_MAX) "] \"...\")", sendToSlaveCommand, .master = true },
-  { .prefix = "tz", .nArgs = 1, .description = "Set POSIX timezone (tz \"Africa/Bamako\")", setTimezoneCommand, .master = true },
+  { .prefix = "tz", .nArgs = 1, .description = "Set POSIX timezone (tz \"PST8PDT,M3.2.0/2:00:00,M11.1.0/2:00:00\")", setTimezoneCommand, .master = true },
   { .prefix = "frfrfr", .nArgs = 0, .description = "Factory reset", .function = factoryResetCommand, .master = false },
 };
 
@@ -205,7 +210,7 @@ void printCommandHelp() {
   for (unsigned int i = 0; i < sizeof(commands) / sizeof(commands[0]); i++) {
     if (!commands[i].master || Config.isMaster) {
       char buff[255];
-      snprintf(buff, 255, "  %10s    %s", commands[i].prefix, commands[i].description);
+      snprintf(buff, 255, "%8s    %s", commands[i].prefix, commands[i].description);
       Serial.println(buff);
     }
   }

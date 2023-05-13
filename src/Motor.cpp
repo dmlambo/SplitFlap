@@ -22,17 +22,17 @@ static unsigned char motorState = 0;
 
 // These are separated into two variables since the timer interrupt runs constantly, and we don't ever want to skip a step
 // if we enable the motor too soon before the next interrupt, by, for instance, setting another target mid-turn
-static bool motorEnabled = false;
-static bool motorRunning = false;
-static int motorStep = 0;
-static int motorTarget = 0;
-static int hallDebounce = 0;
-static int waitForLow = false;
+static volatile bool motorEnabled = false;
+static volatile bool motorRunning = false;
+static volatile int motorStep = 0;
+static volatile int motorTarget = 0;
+static volatile int hallDebounce = 0;
+static volatile int waitForLow = false;
 
-bool motorCalibrated = false;
-bool motorStalled = false;
+volatile bool motorCalibrated = false;
+volatile bool motorStalled = false;
 
-void doMotorISR() {
+void IRAM_ATTR doMotorISR() {
   if (motorEnabled) {
     if (deviceLastStatus != MODULE_CALIBRATING) deviceLastStatus = MODULE_MOVING;
     if (motorRunning) {
@@ -47,10 +47,11 @@ void doMotorISR() {
         motorState %= 8;
         motorStep++;
 
-        if (motorStep == MOTOR_STEPS + MOTOR_STALL_STEPS) { // Done a whole rotation without seeing the hall sensor. We've stalled.
+        if (motorStep >= MOTOR_STEPS + MOTOR_STALL_STEPS) { // Done a whole rotation without seeing the hall sensor. We've stalled.
           deviceLastStatus = MODULE_STALLED;
           motorStalled = true;
           motorRunning = motorEnabled = false;
+          motorStep = 0;
         }
       }
     } else {

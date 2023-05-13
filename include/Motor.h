@@ -8,5 +8,5 @@ void enableMotorTimer();
 void motorMoveToFlap(unsigned int flap);
 void motorDebugPrint();
 
-extern bool motorCalibrated;
-extern bool motorStalled;
+extern volatile bool motorCalibrated;
+extern volatile bool motorStalled;

@@ -43,6 +43,7 @@ void setup() {
   digitalWrite(MOTOR_IN3, 0);
   digitalWrite(MOTOR_IN4, 0);
 
+  // D0 *DOES NOT* have a pullup.
   pinMode(HALL, INPUT_PULLUP);
 
   Serial.begin(57600);
@@ -70,14 +71,7 @@ void setup() {
     Serial.println("First time boot or config size mismatch, using defaults:");
   }
 
-  Serial.print("isMaster: "); Serial.println(Config.isMaster);
-  Serial.print("address: "); Serial.println((int)Config.address);
-  Serial.print("zeroOffset: "); Serial.println((int)Config.zeroOffset);
-  Serial.print("rpm: "); Serial.println((int)Config.rpm);
-
-  if (Config.isMaster) {
-    Serial.print("timeZone: "); Serial.println(*Config.timeZone ? Config.timeZone : "<None set>");
-  }
+  printConfig();
 
   Serial.println();
 

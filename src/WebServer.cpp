@@ -4,6 +4,7 @@
 #include <Wire.h>
 
 #include "Communication.h"
+#include "Display.h"
 
 #include "WebServer.h"
 
@@ -38,17 +39,38 @@ void WebServerInit() {
       request->send(200, "application/json", buff);
   });
 
-  // Send a GET request to <IP>/sensor/<number>
-  server->on("^\\/sensor\\/([0-9]+)$", HTTP_GET, [] (AsyncWebServerRequest *request) {
-      String sensorNumber = request->pathArg(0);
-      request->send(200, "text/plain", "Hello, sensor: " + sensorNumber);
-  });
+  server->on("^\\/display(\\/date)?(\\/ephemeral\\/([0-9]+))?(\\/)?$", HTTP_POST, [] (AsyncWebServerRequest *request) {
+    if (request->contentType() != "text/plain") {
+      request->send(400, "text/plain", "Content type should be text/plain");
+    }
+  }, 
+  NULL, 
+  [] (AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) {
+    static char buff[DISPLAY_MAX_CHARS] = {0};
+    static unsigned int buffIdx;
+    if (index == 0) buffIdx = 0;
+    unsigned int buffLen = DISPLAY_MAX_CHARS - buffIdx;
+    bool truncated = false;
 
-// Send a GET request to <IP>/sensor/<number>/action/<action>
-  server->on("^\\/sensor\\/([0-9]+)\\/action\\/([a-zA-Z0-9]+)$", HTTP_GET, [] (AsyncWebServerRequest *request) {
-      String sensorNumber = request->pathArg(0);
-      String action = request->pathArg(1);
-      request->send(200, "text/plain", "Hello, sensor: " + sensorNumber + ", with action: " + action);
+    if (buffLen > len) {
+      buffLen = len;
+    } else {
+      truncated = true;
+    }
+
+    memcpy(&buff[index], data, buffLen);
+
+    if (index + len == total || truncated) {
+      bool date = request->pathArg(0).length();
+      int displaySec = request->pathArg(2).toInt();
+      Serial.println(String(buff) + " len " + (index+buffLen));
+      displayMessage((const char*)buff, index+buffLen, displaySec, date);
+      if (truncated) {
+        request->send(200, "text/plain", "Truncated to " DEFTOLIT(DISPLAY_MAX_CHARS) " characters");
+      } else {
+        request->send(200);
+      }
+    }
   });
 
   server->serveStatic("/", LittleFS, "/").setDefaultFile("index.html");

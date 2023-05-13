@@ -45,3 +45,5 @@ struct ModuleConfig {
 };
 
 extern ModuleConfig Config;
+
+void printConfig();

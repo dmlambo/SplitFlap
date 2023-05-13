@@ -19,13 +19,13 @@ static unsigned long ephemeralDisplayDurationMillis = 0;
 static unsigned long lastTime = 0;
 static bool ephemeralTime = false;
 static bool persistentTime = false;
-static bool dirty = false;
+static bool displayDirty = false;
 
 void displayEvents() {
   if (ephemeralDisplayDurationMillis) {
     if (millis() - lastEphemeralDisplayMillis > ephemeralDisplayDurationMillis) {
       ephemeralDisplayDurationMillis = 0;
-      dirty = true;
+      displayDirty = true;
     }
   }
 
@@ -34,18 +34,37 @@ void displayEvents() {
   unsigned long curTime = millis() / 1000; // 1s update
 
   if (time && curTime != lastTime) {
-    dirty = true;
+    displayDirty = true;
   }
 
-  if (dirty) {
+  if (displayDirty) {
     memset(currentDisplayText, 0, sizeof(currentDisplayText));
     
     if (time) {
-      tm timeInfo;
-      if (getLocalTime(&timeInfo)) {
-        strftime(currentDisplayText, DISPLAY_MAX_MODULES, displayBuff, &timeInfo);
-      } else {
-        strcpy(currentDisplayText, "NO TIME");
+    static bool timeConfigured = false;
+
+      if (!timeConfigured) {
+        if (!WiFi.isConnected()) {      
+          Serial.println("Wifi unavailable, couldn't configure time");
+          strcpy(currentDisplayText, "NO WIFI");
+        } else {
+          tm timeInfo;
+          Serial.println("Configuring time");
+          configTime(Config.timeZone, "pool.ntp.org");          
+          if (getLocalTime(&timeInfo)) {
+            timeConfigured = true;
+          } else {
+            strcpy(currentDisplayText, "NO TIME");
+          }
+        }
+      } 
+      if (timeConfigured) {
+        tm timeInfo;
+        if (getLocalTime(&timeInfo)) {
+          strftime(currentDisplayText, DISPLAY_MAX_MODULES, displayBuff, &timeInfo);
+        } else {
+          strcpy(currentDisplayText, "NO TIME");
+        }
       }
     } else {
       strncpy(currentDisplayText, displayBuff, DISPLAY_MAX_MODULES);
@@ -68,13 +87,14 @@ void displayEvents() {
       Wire.endTransmission();
     }
 
-    dirty = false;
+    displayDirty = false;
   }
   lastTime = curTime;
 }
 
-void displayMessage(const char* message, unsigned int seconds, bool time) {
+void displayMessage(const char* message, unsigned int len, unsigned int seconds, bool time) {
   char (&displayBuff)[] = seconds ? ephemeralDisplayText : persistentDisplayText;
+  unsigned int cpyLen = DISPLAY_MAX_CHARS > len ? len : DISPLAY_MAX_CHARS;
   
   if (seconds) {
     ephemeralTime = time;
@@ -87,32 +107,11 @@ void displayMessage(const char* message, unsigned int seconds, bool time) {
   ephemeralDisplayDurationMillis = seconds * 1000;
   ephemeralDisplayText[0] = 0;
 
-  if (time) {
-    static bool timeConfigured = false;
+  memcpy(displayBuff, message, cpyLen);
+  displayBuff[cpyLen] = 0;
 
-    if (!timeConfigured) {
-      if (!WiFi.isConnected()) {
-        Serial.println("Wifi unavailable, couldn't configure time");
-        strcpy(displayBuff, "NO WIFI");
-      } else {
-        Serial.println("Configuring time");
-        configTime(Config.timeZone, "pool.ntp.org");
-      }
-    }
-
-    tm timeInfo;
-
-    if (!getLocalTime(&timeInfo)) {
-      Serial.println("Failed to get local time");
-      strcpy(displayBuff, "NO TIME");
-    } else {
-      strcpy(displayBuff, message);
-    }
-  } else {
-    strcpy(displayBuff, message);
-  }
   // Nothing happens until the next loop(), see displayEvents()
-  dirty = true;
+  displayDirty = true;
 }
 
 void displaySetTimeZone(const char* timezone) {
