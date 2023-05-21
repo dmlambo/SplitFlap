@@ -93,7 +93,7 @@ void IRAM_ATTR doMotorISR() {
 }
 
 void motorCalibrate() {
-  Serial.println("Calibrating...");
+  LOGLN("Calibrating...");
   deviceLastStatus = MODULE_CALIBRATING;
 
   noInterrupts();
@@ -145,6 +145,6 @@ void enableMotorTimer() {
 void motorDebugPrint() {
   static int i = 0;
   if (!(i++ % 1000)) {
-    Serial.println(motorStep);
+    LOGLN(motorStep);
   }
 }

@@ -19,6 +19,8 @@
 #include <ESP8266mDNS.h>
 #include <flash_hal.h>
 
+#include <lwip/tcp.h>
+
 // Default config
 ModuleConfig Config = { 
   .magic = CONFIG_MAGIC + sizeof(ModuleConfig), 
@@ -29,6 +31,54 @@ ModuleConfig Config = {
   .timeZone = { 0 }, // Use whichever NTP decides for us
   #include "DefaultCharMap.inc" 
 };
+
+// There's a bug in this version of lwip/NONOS, where when the network interface (netif) is setup
+// in AP, its IP is any, and when a TCP connection tries to survive to STA, the netif changing IPs
+// doesn't cause the right sequence of events to close ESTABLISHED and LISTENING pcbs.
+// Therefore we just plough over the active and waiting pcbs before we start the web server.
+extern struct tcp_pcb* tcp_tw_pcbs;
+extern struct tcp_pcb* tcp_active_pcbs;
+extern "C" void tcp_abandon(struct tcp_pcb *pcb, int reset);
+
+void tcpCleanup (void) {
+  int maxRetries = 50;
+  while (tcp_tw_pcbs && maxRetries--) {
+    LOG("Aborting waiting PCB "); LOGLN((int)tcp_tw_pcbs, 16);
+    tcp_abort(tcp_tw_pcbs);
+  }
+  while (tcp_active_pcbs && maxRetries--) {
+    LOG("Abandoning active PCB "); LOGLN((int)tcp_active_pcbs, 16);
+    tcp_abandon(tcp_active_pcbs, 0);
+  }
+}
+
+bool shouldForgetWifi() {
+  // Add a breif delay since on hard boot the reset pin may go a little wild.
+  delay(RESET_WIFI_SHORT_DELAY);
+
+  bool forgetWifi = false;
+  unsigned int rtcMagic = 0;
+  unsigned int resetCount = 0;
+  unsigned int prevResets = 0;
+  if (system_get_rst_info()->reason == REASON_EXT_SYS_RST) {
+    ESP.rtcUserMemoryRead(0, &rtcMagic, sizeof(rtcMagic));
+    if (rtcMagic == RTC_MAGIC) {
+      ESP.rtcUserMemoryRead(sizeof(rtcMagic), &resetCount, sizeof(resetCount));
+    } else {
+      ESP.rtcUserMemoryWrite(0, &rtcMagic, sizeof(RTC_MAGIC));
+    }
+    if (++resetCount >= RESET_WIFI_COUNT) {
+      forgetWifi = true;
+    }
+  }
+  ESP.rtcUserMemoryWrite(sizeof(rtcMagic), &resetCount, sizeof(resetCount));
+
+  delay(RESET_WIFI_LONG_DELAY);
+
+  prevResets = resetCount;
+  resetCount = 0;
+  ESP.rtcUserMemoryWrite(sizeof(rtcMagic), &resetCount, sizeof(resetCount));
+}
 
 void setup() {
   bool firstBoot = true; 
@@ -46,17 +96,23 @@ void setup() {
   // D0 *DOES NOT* have a pullup.
   pinMode(HALL, INPUT_PULLUP);
 
+  // It's somewhat important where this goes, since we rely on reset timing to determine whether to forget
+  bool forgetWifi = shouldForgetWifi();
+
   Serial.begin(57600);
 
   while (!Serial) { yield(); }
 
-  Serial.println();
-  Serial.println("Welcome to Dave's Split Flap Experience!");
+  LOGLN();
+  LOGLN("Welcome to Dave's Split Flap Experience!");
+
+  // Debug.. 
+  delay(2000); 
 
   if(!LittleFS.begin()){
-    Serial.println("An Error has occurred while mounting LittleFS");
+    LOGLN("An Error has occurred while mounting LittleFS");
     return;
-  }  
+  }
 
   EEPROM.begin(sizeof(ModuleConfig));
 
@@ -65,15 +121,15 @@ void setup() {
     firstBoot = false;
     memcpy(&Config, EEPROM.getConstDataPtr(), sizeof(ModuleConfig));
 
-    Serial.println("Active configuration loaded from flash:");
+    LOGLN("Active configuration loaded from flash:");
   } else {
     // First bootup
-    Serial.println("First time boot or config size mismatch, using defaults:");
+    LOGLN("First time boot or config size mismatch, using defaults:");
   }
 
   printConfig();
 
-  Serial.println();
+  LOGLN();
 
   printCommandHelp();
 
@@ -84,7 +140,7 @@ void setup() {
   // song and dance, so that we ensure we take control of the bus at some point (there's no arbitration)
   // and give others a chance to assign their own address and reboot into slave mode.
   if (firstBoot) {
-    Serial.print("Searching for unused I2C address between " DEFTOLIT(I2C_DEVADDR_MIN+DISPLAY_MAX_MODULES) " and " DEFTOLIT(I2C_DEVADDR_MAX));
+    LOG("Searching for unused I2C address between " DEFTOLIT(I2C_DEVADDR_MIN+DISPLAY_MAX_MODULES) " and " DEFTOLIT(I2C_DEVADDR_MAX));
 
     Wire.begin();
 
@@ -97,40 +153,62 @@ void setup() {
       delayMicroseconds(ESP8266TrueRandom.random(0, 40000));
       unsigned char bytesRead = Wire.requestFrom((int)Config.address, (int)1);
       if (bytesRead) {
-        Serial.print("Found module at address "); Serial.println((int)Config.address);
+        LOG("Found module at address "); LOGLN((int)Config.address);
         attempts = 100;
         Config.address = ESP8266TrueRandom.random(I2C_DEVADDR_MIN+32, I2C_DEVADDR_MAX);
       }
     }
 
-    Serial.print("Found unused address "); Serial.println((int)Config.address);
-    Serial.println("Writing config...");
+    LOG("Found unused address "); LOGLN((int)Config.address);
+    LOGLN("Writing config...");
     memcpy(EEPROM.getDataPtr(), &Config, sizeof(ModuleConfig));
     EEPROM.commit();
-    Serial.println("Rebooting...");
+    LOGLN("Rebooting...");
     Serial.flush();
     ESP.reset();
   }
 
   if (Config.isMaster) {
-    Serial.println("Starting in master mode.");
+    LOGLN("Starting in master mode.");
+    LOG("Previous resets: "); LOGLN(prevResets);
 
     Wire.begin();
     Wire.setClock(I2C_FREQUENCY);
     Wire.setClockStretchLimit(40000);
 
-    WiFiManager wifiManager;
+    {
+      WiFiManager wifiManager;
 
-    Serial.println("Connecting to WiFi...");
-    WiFi.setHostname(WIFI_HOSTNAME);
-    wifiManager.autoConnect(WIFI_AP_NAME);
-    Serial.println("Success!");
+      if (forgetWifi) { 
+        LOGLN("WiFi credentials reset due to external button sequence");
+        wifiManager.resetSettings();
+      }
 
-    if (!MDNS.begin(WIFI_MDNS_HOSTNAME)) {
-      Serial.println("Failed to create MDNS responder");
+      LOGLN("Connecting to WiFi...");
+      WiFi.setHostname(WIFI_HOSTNAME);
+      while (!wifiManager.autoConnect(WIFI_AP_NAME)) {
+        LOGLN("Failed to connect to network. Retrying.");
+      }
+      LOGLN("Success!");
     }
 
-    Serial.println("Initializing web server");
+    delay(1000);
+
+    tcpCleanup();
+
+    delay(5000);
+
+    //LOGLN("Delaying 21s");
+
+    // If we don't wait, our webserver refuses connections if we've freshly added credentials.
+    // May have to be longer than TCP_FIN_WAIT_TIMEOUT
+    //delay(21000);
+
+    if (!MDNS.begin(WIFI_MDNS_HOSTNAME)) {
+      LOGLN("Failed to create MDNS responder");
+    }
+
+    LOGLN("Initializing web server");
     WebServerInit();
 
     MDNS.addService("http", "tcp", 80);
@@ -138,9 +216,9 @@ void setup() {
     // Find all other devices
     enumerateModules();
     
-    Serial.print("Found "); Serial.print(nKnownModules); Serial.println(" other I2C devices.");
+    LOG("Found "); LOG(nKnownModules); LOGLN(" other I2C devices.");
   } else {
-      Serial.print("Starting in slave mode at address "); Serial.println((int)Config.address);
+      LOG("Starting in slave mode at address "); LOGLN((int)Config.address);
       Wire.begin(Config.address);
       Wire.setClock(I2C_FREQUENCY);
       Wire.setClockStretchLimit(40000);
@@ -153,7 +231,6 @@ void setup() {
 }
 
 void loop() {
-
   // Handle immediate events
   if (Serial.available()) {
     char commandBuff[128];
@@ -164,24 +241,24 @@ void loop() {
   char* i2cCommand = i2cReadCommand();
 
   if (i2cCommand && *i2cCommand) {
-    Serial.println("Reveived I2C command...");
+    LOGLN("Reveived I2C command...");
     handleCommand(i2cCommand);
   }
 
   if (i2cOverflow) {
     deviceLastStatus = MODULE_OVERFLOW;
     i2cOverflow = false;
-    Serial.println("I2C command buffer overflow.");
+    LOGLN("I2C command buffer overflow.");
   }
 
   if (motorCalibrated) {
     motorCalibrated = false;
-    Serial.println("Motor is calibrated.");
+    LOGLN("Motor is calibrated.");
   }
 
   if (motorStalled) {
     motorStalled = false;
-    Serial.println("Motor stalled.");
+    LOGLN("Motor stalled.");
   }
   // ~immediate events
 

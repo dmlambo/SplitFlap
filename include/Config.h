@@ -33,6 +33,21 @@
 #define CONFIG_MAGIC 0xFA7FEE75
 #define CONFIG_TZSIZE 63
 
+#define RTC_MAGIC 0xBEEFB015
+
+// We save the current reset count and if it goes over RESET_WIFI_COUNT we clear the wifi creds
+#define RESET_WIFI_COUNT 3
+#define RESET_WIFI_SHORT_DELAY 50
+#define RESET_WIFI_LONG_DELAY 1200
+
+#ifdef DISABLE_LOGGING
+#define LOGLN(...)
+#define LOG(...)
+#else
+#define LOGLN(...) Serial.println(__VA_ARGS__)
+#define LOG(...) Serial.print(__VA_ARGS__)
+#endif
+
 struct ModuleConfig {
   unsigned int magic; // Check for first-time configuration, or change of size of this struct
   bool isMaster;

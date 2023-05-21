@@ -27,7 +27,7 @@ void WebServerInit() {
 
       for (int i = 0; i < nKnownModules; i++) {
         doc["modules"][i+1]["address"] = knownModules[i];
-        char nRead = Wire.requestFrom(knownModules[i], 1, true);
+        char nRead = Wire.requestFrom((uint8_t)knownModules[i], (uint8_t)1, (uint8_t)true);
         if (nRead) {        
           doc["modules"][i+1]["status"] = StatusStr[Wire.read()];       
         } else {
@@ -63,7 +63,7 @@ void WebServerInit() {
     if (index + len == total || truncated) {
       bool date = request->pathArg(0).length();
       int displaySec = request->pathArg(2).toInt();
-      Serial.println(String(buff) + " len " + (index+buffLen));
+      LOGLN(String(buff) + " len " + (index+buffLen));
       displayMessage((const char*)buff, index+buffLen, displaySec, date);
       if (truncated) {
         request->send(200, "text/plain", "Truncated to " DEFTOLIT(DISPLAY_MAX_CHARS) " characters");

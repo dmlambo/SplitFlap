@@ -45,11 +45,11 @@ void displayEvents() {
 
       if (!timeConfigured) {
         if (!WiFi.isConnected()) {      
-          Serial.println("Wifi unavailable, couldn't configure time");
+          LOGLN("Wifi unavailable, couldn't configure time");
           strcpy(currentDisplayText, "NO WIFI");
         } else {
           tm timeInfo;
-          Serial.println("Configuring time");
+          LOGLN("Configuring time");
           configTime(Config.timeZone, "pool.ntp.org");          
           if (getLocalTime(&timeInfo)) {
             timeConfigured = true;
@@ -75,18 +75,22 @@ void displayEvents() {
       currentDisplayText[i] = currentDisplayText[i] < 32 ? 32 : (currentDisplayText[i] & 127);
     }
 
-    Serial.print("Displaying: ");
-    Serial.println(currentDisplayText);
+    LOG("Displaying: ");
+    LOGLN(currentDisplayText);
 
     motorMoveToFlap(Config.charMap[(currentDisplayText[0]&127)-32]);
 
     for (unsigned int i = 0; i < nKnownModules; i++) {
+      unsigned char res;
+      unsigned char nRetries = 5;
       char buff[6];
       snprintf(buff, 6, "f %d", Config.charMap[(currentDisplayText[i+1]&127)-32]);
-      Wire.beginTransmission(knownModules[i]);
-      Wire.write(buff);
-      Wire.write(0);
-      Wire.endTransmission();
+      do {
+        Wire.beginTransmission(knownModules[i]);
+        Wire.write(buff);
+        Wire.write(0);
+        res = Wire.endTransmission();
+      } while (res != 0 && nRetries--);
     }
 
     displayDirty = false;

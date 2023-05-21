@@ -22,21 +22,21 @@ const char* wifiStatusStr(wl_status_t status) {
 }
 
 void printConfig() {
-  Serial.print("isMaster: "); Serial.println(Config.isMaster);
-  Serial.print("address: "); Serial.println((int)Config.address);
-  Serial.print("zeroOffset: "); Serial.println((int)Config.zeroOffset);
-  Serial.print("rpm: "); Serial.println((int)Config.rpm);
+  LOG("isMaster: "); LOGLN(Config.isMaster);
+  LOG("address: "); LOGLN((int)Config.address);
+  LOG("zeroOffset: "); LOGLN((int)Config.zeroOffset);
+  LOG("rpm: "); LOGLN((int)Config.rpm);
 
   if (Config.isMaster) {
-    Serial.print("timeZone: "); Serial.println(*Config.timeZone ? Config.timeZone : "<None set>");
-    Serial.println();
-    Serial.print("WiFi status: "); Serial.println(wifiStatusStr(WiFi.status()));
-    Serial.print("IP address: "); Serial.println(WiFi.localIP());
-    Serial.println();
-    Serial.print("Connected to "); Serial.print(nKnownModules); Serial.print(" other modules: ");
+    LOG("timeZone: "); LOGLN(*Config.timeZone ? Config.timeZone : "<None set>");
+    LOGLN();
+    LOG("WiFi status: "); LOGLN(wifiStatusStr(WiFi.status()));
+    LOG("IP address: "); LOGLN(WiFi.localIP());
+    LOGLN();
+    LOG("Connected to "); LOG(nKnownModules); LOG(" other modules: ");
     for (unsigned int i = 0; i < nKnownModules; i++) {
-      Serial.print((int)knownModules[i]); Serial.print(" ");
+      LOG((int)knownModules[i]); LOG(" ");
     }
-    Serial.println();
+    LOGLN();
   }
 }

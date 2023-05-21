@@ -11,6 +11,13 @@ enum Status {
   MODULE_UNAVAILABLE,
 };
 
+struct ModuleStatus {
+  Status status;
+  char version;
+  char letter;
+  char zeroOffset;
+};
+
 extern const char* StatusStr[];
 extern bool i2cOverflow ;
 extern Status deviceLastStatus;

@@ -33,12 +33,12 @@ bool argToIntRange(const char* arg, int min, int max, int* out) {
 }
 
 void resetCommand(unsigned char nArgs, const char** args) {
-  Serial.println("Resetting...");
+  LOGLN("Resetting...");
   ESP.reset();
 }
 
 void factoryResetCommand(unsigned char nArgs, const char** args) {
-  Serial.println("Resetting to factory defaults...");
+  LOGLN("Resetting to factory defaults...");
   Config.magic = ~CONFIG_MAGIC;
   memcpy(EEPROM.getDataPtr(), &Config, sizeof(ModuleConfig));
   EEPROM.commit();
@@ -51,7 +51,7 @@ void setAddressCommand(unsigned char nArgs, const char** args) {
 
   // 0-7 and 0x78-0x7F are I2C reserved
   if (!argToIntRange(args[1], I2C_DEVADDR_MIN, I2C_DEVADDR_MAX, &slaveAddr)) {
-    Serial.println("Failed: Agument not in range 8-120");
+    LOGLN("Failed: Agument not in range 8-120");
     return;
   }
 
@@ -59,8 +59,8 @@ void setAddressCommand(unsigned char nArgs, const char** args) {
   memcpy(EEPROM.getDataPtr(), &Config, sizeof(ModuleConfig));
   EEPROM.commit();
 
-  Serial.print("New address set to "); Serial.println(slaveAddr);
-  Serial.println("Resetting...");
+  LOG("New address set to "); LOGLN(slaveAddr);
+  LOGLN("Resetting...");
 
   ESP.reset();
 }
@@ -69,7 +69,7 @@ void setZeroOffsetCommand(unsigned char nArgs, const char** args) {
   int newZero = 0;
 
   if (!argToIntRange(args[1], 0, 255, &newZero)) {
-    Serial.println("Failed: Argument not in range 0-255");
+    LOGLN("Failed: Argument not in range 0-255");
     return;
   }
 
@@ -77,7 +77,7 @@ void setZeroOffsetCommand(unsigned char nArgs, const char** args) {
   memcpy(EEPROM.getDataPtr(), &Config, sizeof(ModuleConfig));
   EEPROM.commit();
 
-  Serial.print("New zero point set to "); Serial.println(newZero);
+  LOG("New zero point set to "); LOGLN(newZero);
   motorCalibrate();
 }
 
@@ -85,7 +85,7 @@ void setSpeedCommand(unsigned char nArgs, const char** args) {
   int newSpeed = 0;
 
   if (!argToIntRange(args[1], 1, 30, &newSpeed)) {
-    Serial.println("Failed: Argument not in range 1-30");
+    LOGLN("Failed: Argument not in range 1-30");
     return;
   }
 
@@ -93,7 +93,7 @@ void setSpeedCommand(unsigned char nArgs, const char** args) {
   memcpy(EEPROM.getDataPtr(), &Config, sizeof(ModuleConfig));
   EEPROM.commit();
 
-  Serial.print("New speed set to "); Serial.println(newSpeed);
+  LOG("New speed set to "); LOGLN(newSpeed);
   motorSetRPM(newSpeed);
 }
 
@@ -101,7 +101,7 @@ void setMasterCommand(unsigned char nArgs, const char** args) {
   int newMaster = 0;
 
   if (!argToIntRange(args[1], 0, 1, &newMaster)) {
-    Serial.println("Failed: Set master only takes 1 or 0");
+    LOGLN("Failed: Set master only takes 1 or 0");
     return;
   }
 
@@ -110,11 +110,11 @@ void setMasterCommand(unsigned char nArgs, const char** args) {
   EEPROM.commit();
 
   if (newMaster) {
-    Serial.println("Now set to master.");
+    LOGLN("Now set to master.");
   } else {
-    Serial.println("Now set to slave.");
+    LOGLN("Now set to slave.");
   }
-  Serial.println("Resetting...");
+  LOGLN("Resetting...");
 
   ESP.reset();
 }
@@ -123,12 +123,12 @@ void sendToSlaveCommand(unsigned char nArgs, const char** args) {
   int slaveAddr = 0;
 
   if (!argToIntRange(args[1], 0, I2C_DEVADDR_MAX, &slaveAddr)) {
-    Serial.println("Failed: Argument not in range 0-" DEFTOLIT(I2C_DEVADDR_MAX));
+    LOGLN("Failed: Argument not in range 0-" DEFTOLIT(I2C_DEVADDR_MAX));
     return;
   }
 
-  Serial.print("Sending data to slave "); Serial.print(slaveAddr); Serial.println(":");
-  Serial.println(args[2]);
+  LOG("Sending data to slave "); LOG(slaveAddr); LOGLN(":");
+  LOGLN(args[2]);
 
   Wire.beginTransmission(slaveAddr);
   Wire.write(args[2]);
@@ -144,7 +144,7 @@ void moveToFlapCommand(unsigned char nArgs, const char** args) {
   int newFlap = 0;
 
   if (!argToIntRange(args[1], 0, MOTOR_FLAPS-1, &newFlap)) {
-    Serial.println("Failed: Flap number out of range (0-" DEFTOLIT(MOTOR_FLAPS) ")");
+    LOGLN("Failed: Flap number out of range (0-" DEFTOLIT(MOTOR_FLAPS) ")");
     return;
   }
 
@@ -153,11 +153,11 @@ void moveToFlapCommand(unsigned char nArgs, const char** args) {
 
 void setTimezoneCommand(unsigned char nArgs, const char** args) {
   if (strlen(args[0]) > CONFIG_TZSIZE) {
-    Serial.println("Failed: Input too long (max" DEFTOLIT(CONFIG_TZSIZE) ")");
+    LOGLN("Failed: Input too long (max" DEFTOLIT(CONFIG_TZSIZE) ")");
     return;
   }
 
-  Serial.print("Setting timezone to "); Serial.println(args[1]);
+  LOG("Setting timezone to "); LOGLN(args[1]);
   displaySetTimeZone(args[1]);
   strncpy(Config.timeZone, args[1], CONFIG_TZSIZE);
   memcpy(EEPROM.getDataPtr(), &Config, sizeof(ModuleConfig));
@@ -169,12 +169,12 @@ void displayCommand(unsigned char nArgs, const char** args) {
   int time;
 
   if (!argToIntRange(args[2], 0, 3600, &ephemeral)) {
-    Serial.println("Failed: Ephemeral out of range 0 to 3600");
+    LOGLN("Failed: Ephemeral out of range 0 to 3600");
     return;
   }
 
   if (!argToIntRange(args[3], 0, 1, &time)) {
-    Serial.println("Failed: Date takes 1 or 0");
+    LOGLN("Failed: Date takes 1 or 0");
     return;
   }
 
@@ -206,27 +206,27 @@ static Command commands[] = {
 };
 
 void printCommandHelp() {
-  Serial.println("Here are the commands available to you:");
+  LOGLN("Here are the commands available to you:");
   for (unsigned int i = 0; i < sizeof(commands) / sizeof(commands[0]); i++) {
     if (!commands[i].master || Config.isMaster) {
       char buff[255];
       snprintf(buff, 255, "%8s    %s", commands[i].prefix, commands[i].description);
-      Serial.println(buff);
+      LOGLN(buff);
     }
   }
   if (!Config.isMaster) {
-    Serial.println("Some commands not available in slave mode not shown");
+    LOGLN("Some commands not available in slave mode not shown");
   }  
 }
 
 // Modifies command argument!
 void handleCommand(char* command) {
   if (!*command) {
-    Serial.println("Empty command buffer");
+    LOGLN("Empty command buffer");
     return;
   }
 
-  Serial.print("Received command: "); Serial.println(command);
+  LOG("Received command: "); LOGLN(command);
 
 	bool quote = false;
 	bool delim = true;
@@ -270,14 +270,14 @@ void handleCommand(char* command) {
 	}
 
   if (quote) {
-    Serial.print("Missing closing quotation");
+    LOG("Missing closing quotation");
     return;
   }
 
   for (unsigned int i = 0; i < sizeof(commands) / sizeof(commands[0]); i++) {
     if ((!commands[i].master || Config.isMaster) && !strcmp(args[0], commands[i].prefix)) {
       if (nArgs != commands[i].nArgs + 1) {
-        Serial.print("Command takes "); Serial.print(commands[i].nArgs); Serial.println(" argument(s)!");
+        LOG("Command takes "); LOG(commands[i].nArgs); LOGLN(" argument(s)!");
         return;
       }
       // If our timer is running, SPI has an issue writing to flash... likely I2C will have an issue too.
@@ -287,6 +287,6 @@ void handleCommand(char* command) {
       return;
     }
   }
-  Serial.println("Unknown command");
+  LOGLN("Unknown command");
   printCommandHelp();
 }
