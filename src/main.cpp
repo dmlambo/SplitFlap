@@ -12,9 +12,9 @@
 #include "Commands.h"
 #include "Communication.h"
 #include "Display.h"
-
 #include "Motor.h"
 #include "WebServer.h"
+#include "Utils.h"
 
 #include <ESP8266mDNS.h>
 #include <flash_hal.h>
@@ -28,57 +28,9 @@ ModuleConfig Config = {
   .address = 0, 
   .zeroOffset = 0,
   .rpm = 15, 
-  .timeZone = { 0 }, // Use whichever NTP decides for us
+  .timeZone = { 0 },
   #include "DefaultCharMap.inc" 
 };
-
-// There's a bug in this version of lwip/NONOS, where when the network interface (netif) is setup
-// in AP, its IP is any, and when a TCP connection tries to survive to STA, the netif changing IPs
-// doesn't cause the right sequence of events to close ESTABLISHED and LISTENING pcbs.
-// Therefore we just plough over the active and waiting pcbs before we start the web server.
-extern struct tcp_pcb* tcp_tw_pcbs;
-extern struct tcp_pcb* tcp_active_pcbs;
-extern "C" void tcp_abandon(struct tcp_pcb *pcb, int reset);
-
-void tcpCleanup (void) {
-  int maxRetries = 50;
-  while (tcp_tw_pcbs && maxRetries--) {
-    LOG("Aborting waiting PCB "); LOGLN((int)tcp_tw_pcbs, 16);
-    tcp_abort(tcp_tw_pcbs);
-  }
-  while (tcp_active_pcbs && maxRetries--) {
-    LOG("Abandoning active PCB "); LOGLN((int)tcp_active_pcbs, 16);
-    tcp_abandon(tcp_active_pcbs, 0);
-  }
-}
-
-bool shouldForgetWifi() {
-  // Add a breif delay since on hard boot the reset pin may go a little wild.
-  delay(RESET_WIFI_SHORT_DELAY);
-
-  bool forgetWifi = false;
-  unsigned int rtcMagic = 0;
-  unsigned int resetCount = 0;
-  unsigned int prevResets = 0;
-  if (system_get_rst_info()->reason == REASON_EXT_SYS_RST) {
-    ESP.rtcUserMemoryRead(0, &rtcMagic, sizeof(rtcMagic));
-    if (rtcMagic == RTC_MAGIC) {
-      ESP.rtcUserMemoryRead(sizeof(rtcMagic), &resetCount, sizeof(resetCount));
-    } else {
-      ESP.rtcUserMemoryWrite(0, &rtcMagic, sizeof(RTC_MAGIC));
-    }
-    if (++resetCount >= RESET_WIFI_COUNT) {
-      forgetWifi = true;
-    }
-  }
-  ESP.rtcUserMemoryWrite(sizeof(rtcMagic), &resetCount, sizeof(resetCount));
-
-  delay(RESET_WIFI_LONG_DELAY);
-
-  prevResets = resetCount;
-  resetCount = 0;
-  ESP.rtcUserMemoryWrite(sizeof(rtcMagic), &resetCount, sizeof(resetCount));
-}
 
 void setup() {
   bool firstBoot = true; 
@@ -97,7 +49,7 @@ void setup() {
   pinMode(HALL, INPUT_PULLUP);
 
   // It's somewhat important where this goes, since we rely on reset timing to determine whether to forget
-  bool forgetWifi = shouldForgetWifi();
+  bool forgetWifi = prevResets() >= RESET_WIFI_COUNT;
 
   Serial.begin(57600);
 
@@ -150,9 +102,9 @@ void setup() {
     int attempts = 100;
 
     while (!addrFound && attempts--) { 
+      ModuleStatus status;
       delayMicroseconds(ESP8266TrueRandom.random(0, 40000));
-      unsigned char bytesRead = Wire.requestFrom((int)Config.address, (int)1);
-      if (bytesRead) {
+      if (i2cReadStruct(Config.address, &status) == PACKET_OK) {
         LOG("Found module at address "); LOGLN((int)Config.address);
         attempts = 100;
         Config.address = ESP8266TrueRandom.random(I2C_DEVADDR_MIN+32, I2C_DEVADDR_MAX);
@@ -170,7 +122,6 @@ void setup() {
 
   if (Config.isMaster) {
     LOGLN("Starting in master mode.");
-    LOG("Previous resets: "); LOGLN(prevResets);
 
     Wire.begin();
     Wire.setClock(I2C_FREQUENCY);
@@ -196,13 +147,8 @@ void setup() {
 
     tcpCleanup();
 
-    delay(5000);
-
-    //LOGLN("Delaying 21s");
-
-    // If we don't wait, our webserver refuses connections if we've freshly added credentials.
-    // May have to be longer than TCP_FIN_WAIT_TIMEOUT
-    //delay(21000);
+    // Not sure if needed, but we should probably wait for lwip's fast and slow timer procs to run (250/500ms)
+    delay(1000);;
 
     if (!MDNS.begin(WIFI_MDNS_HOSTNAME)) {
       LOGLN("Failed to create MDNS responder");
@@ -241,7 +187,7 @@ void loop() {
   char* i2cCommand = i2cReadCommand();
 
   if (i2cCommand && *i2cCommand) {
-    LOGLN("Reveived I2C command...");
+    //LOGLN("Reveived I2C command...");
     handleCommand(i2cCommand);
   }
 

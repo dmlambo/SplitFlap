@@ -28,6 +28,7 @@ static volatile int motorStep = 0;
 static volatile int motorTarget = 0;
 static volatile int hallDebounce = 0;
 static volatile int waitForLow = false;
+static volatile unsigned int currentFlap = 0;
 
 volatile bool motorCalibrated = false;
 volatile bool motorStalled = false;
@@ -120,11 +121,17 @@ void motorMoveToFlap(unsigned int flap) {
     flap = 0;
   }
 
+  currentFlap = flap;
+
   noInterrupts();
   motorTarget = (int)((float)flap * ((float)MOTOR_STEPS / (float)MOTOR_FLAPS));
   motorEnabled = true;
   interrupts();
   enableMotorTimer();
+}
+
+unsigned int motorCurrentFlap() {
+  return currentFlap;
 }
 
 void motorInit() {

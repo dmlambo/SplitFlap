@@ -22,6 +22,7 @@ const char* wifiStatusStr(wl_status_t status) {
 }
 
 void printConfig() {
+  LOG("Version: "); LOGLN(VERSION);
   LOG("isMaster: "); LOGLN(Config.isMaster);
   LOG("address: "); LOGLN((int)Config.address);
   LOG("zeroOffset: "); LOGLN((int)Config.zeroOffset);

@@ -1,10 +1,13 @@
 #include <Arduino.h>
 
 #include <EEPROM.h>
+#include <ESP8266WiFi.h>
+#include <ESP8266HTTPClient.h>
 #include <Wire.h>
 
 #include "Config.h"
 
+#include "Communication.h"
 #include "Motor.h"
 #include "Display.h"
 
@@ -20,9 +23,21 @@ struct Command {
 
 void printCommandHelp();
 
-bool argToIntRange(const char* arg, int min, int max, int* out) {
+bool argInRange(const char* arg, unsigned int min, unsigned int max, unsigned int* out) {
   char* end;
-  int value = strtol(arg, &end, 10);
+  unsigned long value = strtoul(arg, &end, 10);
+
+  if (value > max || value < min || *end) {
+    return false;
+  }
+
+  *out = value;
+  return true;
+}
+
+bool argInRange(const char* arg, int min, int max, int* out) {
+  char* end;
+  long value = strtol(arg, &end, 10);
 
   if (value > max || value < min || *end) {
     return false;
@@ -50,7 +65,7 @@ void setAddressCommand(unsigned char nArgs, const char** args) {
   int slaveAddr = 0;
 
   // 0-7 and 0x78-0x7F are I2C reserved
-  if (!argToIntRange(args[1], I2C_DEVADDR_MIN, I2C_DEVADDR_MAX, &slaveAddr)) {
+  if (!argInRange(args[1], I2C_DEVADDR_MIN, I2C_DEVADDR_MAX, &slaveAddr)) {
     LOGLN("Failed: Agument not in range 8-120");
     return;
   }
@@ -68,7 +83,7 @@ void setAddressCommand(unsigned char nArgs, const char** args) {
 void setZeroOffsetCommand(unsigned char nArgs, const char** args) {
   int newZero = 0;
 
-  if (!argToIntRange(args[1], 0, 255, &newZero)) {
+  if (!argInRange(args[1], 0, 255, &newZero)) {
     LOGLN("Failed: Argument not in range 0-255");
     return;
   }
@@ -84,7 +99,7 @@ void setZeroOffsetCommand(unsigned char nArgs, const char** args) {
 void setSpeedCommand(unsigned char nArgs, const char** args) {
   int newSpeed = 0;
 
-  if (!argToIntRange(args[1], 1, 30, &newSpeed)) {
+  if (!argInRange(args[1], 1, 30, &newSpeed)) {
     LOGLN("Failed: Argument not in range 1-30");
     return;
   }
@@ -100,7 +115,7 @@ void setSpeedCommand(unsigned char nArgs, const char** args) {
 void setMasterCommand(unsigned char nArgs, const char** args) {
   int newMaster = 0;
 
-  if (!argToIntRange(args[1], 0, 1, &newMaster)) {
+  if (!argInRange(args[1], 0, 1, &newMaster)) {
     LOGLN("Failed: Set master only takes 1 or 0");
     return;
   }
@@ -122,7 +137,7 @@ void setMasterCommand(unsigned char nArgs, const char** args) {
 void sendToSlaveCommand(unsigned char nArgs, const char** args) {
   int slaveAddr = 0;
 
-  if (!argToIntRange(args[1], 0, I2C_DEVADDR_MAX, &slaveAddr)) {
+  if (!argInRange(args[1], 0, I2C_DEVADDR_MAX, &slaveAddr)) {
     LOGLN("Failed: Argument not in range 0-" DEFTOLIT(I2C_DEVADDR_MAX));
     return;
   }
@@ -143,7 +158,7 @@ void calibrateMotorCommand(unsigned char nArgs, const char** args) {
 void moveToFlapCommand(unsigned char nArgs, const char** args) {
   int newFlap = 0;
 
-  if (!argToIntRange(args[1], 0, MOTOR_FLAPS-1, &newFlap)) {
+  if (!argInRange(args[1], 0, MOTOR_FLAPS-1, &newFlap)) {
     LOGLN("Failed: Flap number out of range (0-" DEFTOLIT(MOTOR_FLAPS) ")");
     return;
   }
@@ -152,7 +167,7 @@ void moveToFlapCommand(unsigned char nArgs, const char** args) {
 }
 
 void setTimezoneCommand(unsigned char nArgs, const char** args) {
-  if (strlen(args[0]) > CONFIG_TZSIZE) {
+  if (strlen(args[1]) > CONFIG_TZSIZE) {
     LOGLN("Failed: Input too long (max" DEFTOLIT(CONFIG_TZSIZE) ")");
     return;
   }
@@ -168,12 +183,12 @@ void displayCommand(unsigned char nArgs, const char** args) {
   int ephemeral;
   int time;
 
-  if (!argToIntRange(args[2], 0, 3600, &ephemeral)) {
+  if (!argInRange(args[2], 0, 3600, &ephemeral)) {
     LOGLN("Failed: Ephemeral out of range 0 to 3600");
     return;
   }
 
-  if (!argToIntRange(args[3], 0, 1, &time)) {
+  if (!argInRange(args[3], 0, 1, &time)) {
     LOGLN("Failed: Date takes 1 or 0");
     return;
   }
@@ -189,20 +204,170 @@ void showConfigCommand(unsigned char nArgs, const char** args) {
   printConfig();
 }
 
+void updateModulesCommand(unsigned char nArgs, const char** args) {
+  const char* SSID = "SFUpd";
+  const char* moduleCmd = "cu SFUpd";
+
+  if (!WiFi.softAPConfig(IPAddress(192, 168, 4, 1), IPAddress(192, 168, 4, 1), IPAddress(255, 255, 255, 0))) {
+    LOGLN("Failed: Could not configure soft AP");
+    WiFi.softAPdisconnect();
+    return;
+  }
+
+  // If we have more than 9 modules we would need a queuing system
+  if (!WiFi.softAP(SSID, emptyString, 0, 1, 8)) { // hidden, 8 connections
+    LOGLN("Failed: Could not turn on soft AP");
+    WiFi.softAPdisconnect();
+    return;
+  }
+
+  unsigned char nModules = 0;
+  unsigned char staleModules[DISPLAY_MAX_MODULES] = { 0 };
+
+  for (int i = 0; i < nKnownModules; i++) {
+    ModuleStatus status;
+    PacketStatus packetStatus = i2cReadStruct(knownModules[i], &status);
+    if ((packetStatus == PACKET_OK && status.version != VERSION) || packetStatus != PACKET_EMPTY) {
+      staleModules[nModules++] = knownModules[i];
+    }
+  }
+
+  if (!nModules) {
+    LOGLN("All modules up to date.");
+    WiFi.softAPdisconnect();
+    return;
+  }
+
+  for (int i = 0; i < nModules; i++) {
+    char retries = I2C_RETRIES;
+
+    while (retries--) {
+      delay(10);
+      Wire.beginTransmission(staleModules[i]);
+      Wire.write(moduleCmd);
+      Wire.write(0);
+      if (!Wire.endTransmission()) {
+        retries = 0;
+      }
+    }
+  }
+
+  modulesContacted = 0; // Modules who have connected to us.
+  modulesFinishedUpdate = 0; // Modules who have ended the connection.
+
+  LOG("Contacted "); LOG(nModules); LOGLN(" modules...");
+  LOGLN("Waiting for connections...");
+  unsigned long curMillis = millis();
+  while (millis() - curMillis < 300000) {
+    LOG(modulesContacted); LOG(" modules have made contact, "); LOG(modulesFinishedUpdate); LOGLN(" have finished downloading.");
+    if (modulesFinishedUpdate == nModules) {
+      LOGLN("All modules finished downloading firmware!");
+      break;
+    }
+    delay(1000);
+  }
+  // TODO: Get status from each module and compare against this one.
+  LOGLN("Done... check status for version numbers.");
+
+  WiFi.softAPdisconnect();
+}
+
+void beginUpdateCommand(unsigned char nArgs, const char** args) {
+  WiFi.enableSTA(true);
+  WiFi.setAutoReconnect(false);
+  WiFi.begin(args[1]);
+
+  LOGLN("Starting WiFi update process...");
+  LOG("Connecting to SSID "); LOGLN(args[1]);
+
+  if (!WiFi.waitForConnectResult(60000)) {
+    LOG("Failed: Could not connect to AP after 60s: "); LOGLN(args[1]);
+    WiFi.disconnect(true, true);
+    return;
+  }
+
+  WiFiClient client;
+  HTTPClient httpClient;
+
+  //httpClient.setReuse(true);
+  httpClient.begin(client, String("http://") + WiFi.gatewayIP().toString() + "/update.bin");
+  
+  int responseCode = httpClient.GET();
+
+  if (responseCode != HTTP_CODE_OK) {
+    LOG("Failed: HTTP response code: "); LOGLN(responseCode);
+    httpClient.end();
+    WiFi.disconnect(true, true);
+    return;
+  }
+
+  unsigned int size = httpClient.getSize();
+
+  LOG("Remote firmware size: "); LOGLN(size);
+
+  if(!Update.begin(size, U_FLASH)) {
+    LOGLN("Failed: Update.begin returned false:");
+    LOGLN(Update.getErrorString());
+    httpClient.end();
+    WiFi.disconnect(true, true);
+    return;
+  }
+
+  unsigned int totalRead = 0;
+  unsigned int retry = 5;
+
+  while (httpClient.connected() && --retry) {
+    unsigned char buff[64];
+    unsigned int read = httpClient.getStream().readBytes(buff, sizeof(buff));
+    //unsigned int read = client.readBytes(buff, sizeof(buff));
+    if (!read) {
+      continue;
+    }
+    retry = 5;
+    if (Update.write(buff, read) != read) {
+      LOGLN("Failed: Couldn't write all bytes from stream:");
+      LOGLN(Update.getErrorString());
+      WiFi.disconnect(true, true);
+      return;
+    }
+    totalRead += read;
+    if (totalRead == size) break;
+  }
+
+  LOG("Read "); LOG(totalRead); LOGLN(" bytes from server");
+
+  httpClient.end();
+
+  if(!Update.end()) {
+    LOGLN("Failed: Update end returned false:");
+    LOGLN(Update.getErrorString());
+    WiFi.disconnect(true, true);
+    return;
+  }
+
+  LOGLN("Update finished, rebooting...");
+  delay(1000);
+  WiFi.disconnect(true, true);
+  delay(1000);
+  ESP.restart();
+}
+
 static Command commands[] = {
-  { .prefix = "h", .nArgs = 0, .description = "Show this help", .function = showHelpCommand, .master = false },
-  { .prefix = "f", .nArgs = 1, .description = "Move to flap (f [0-" DEFTOLIT((MOTOR_FLAPS - 1))"])", .function = moveToFlapCommand, .master = false },
-  { .prefix = "m", .nArgs = 1, .description = "Set master mode (m [0|1])", .function = setMasterCommand, .master = false },
-  { .prefix = "a", .nArgs = 1, .description = "Set address (a [" DEFTOLIT(I2C_DEVADDR_MIN) "-" DEFTOLIT(I2C_DEVADDR_MAX) "])", .function = setAddressCommand, .master = false },
-  { .prefix = "z", .nArgs = 1, .description = "Set zero point offset (z [0-255])", .function = setZeroOffsetCommand, .master = false },
-  { .prefix = "c", .nArgs = 0, .description = "Calibrate motor to 0 position", calibrateMotorCommand, .master = false },
-  { .prefix = "s", .nArgs = 1, .description = "Speed in RPM (s [1-30])", setSpeedCommand, .master = false },
-  { .prefix = "r", .nArgs = 0, .description = "Reset", .function = resetCommand, .master = false },
-  { .prefix = "cfg", .nArgs = 0, .description = "Show configuration", .function = showConfigCommand, .master = false },
-  { .prefix = "msg", .nArgs = 3, .description = "Display message (msg \"message\" 10 0)", .function = displayCommand, .master = true },
-  { .prefix = "x", .nArgs = 2, .description = "Send command to slave (x [0-" DEFTOLIT(I2C_DEVADDR_MAX) "] \"...\")", sendToSlaveCommand, .master = true },
-  { .prefix = "tz", .nArgs = 1, .description = "Set POSIX timezone (tz \"PST8PDT,M3.2.0/2:00:00,M11.1.0/2:00:00\")", setTimezoneCommand, .master = true },
-  { .prefix = "frfrfr", .nArgs = 0, .description = "Factory reset", .function = factoryResetCommand, .master = false },
+  { "h",      0, "Show this help",                                                                showHelpCommand,        false },
+  { "f",      1, "Move to flap (f [0-" DEFTOLIT((MOTOR_FLAPS - 1))"])",                           moveToFlapCommand,      false },
+  { "m",      1, "Set master mode (m [0|1])",                                                     setMasterCommand,       false },
+  { "a",      1, "Set address (a [" DEFTOLIT(I2C_DEVADDR_MIN) "-" DEFTOLIT(I2C_DEVADDR_MAX) "])", setAddressCommand,      false },
+  { "z",      1, "Set zero point offset (z [0-255])",                                             setZeroOffsetCommand,   false },
+  { "c",      0, "Calibrate motor to 0 position",                                                 calibrateMotorCommand,  false },
+  { "s",      1, "Speed in RPM (s [1-30])",                                                       setSpeedCommand,        false },
+  { "r",      0, "Reset",                                                                         resetCommand,           false },
+  { "cfg",    0, "Show configuration",                                                            showConfigCommand,      false },
+  { "msg",    3, "Display message (msg \"message\" 10 0)",                                        displayCommand,         true },
+  { "x",      2, "Send command to slave (x [0-" DEFTOLIT(I2C_DEVADDR_MAX) "] \"...\")",           sendToSlaveCommand,     true },
+  { "tz",     1, "Set POSIX timezone (tz \"PST8PDT,M3.2.0/2:00:00,M11.1.0/2:00:00\")",            setTimezoneCommand,     true },
+  { "cu",     1, "Connect to adhoc update AP (cu UpdateSSID)",                                    beginUpdateCommand,     false },
+  { "xu",     0, "Update modules with host firmware",                                             updateModulesCommand,   true },
+  { "frfrfr", 0, "Factory reset",                                                                 factoryResetCommand,    false },
 };
 
 void printCommandHelp() {
@@ -226,7 +391,7 @@ void handleCommand(char* command) {
     return;
   }
 
-  LOG("Received command: "); LOGLN(command);
+  // LOG("Received command: "); LOGLN(command);
 
 	bool quote = false;
 	bool delim = true;
