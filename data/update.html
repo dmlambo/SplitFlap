@@ -1,0 +1,22 @@
+<html>
+  <body>
+    <div>
+      <form method="post" enctype="multipart/form-data" action="/update">
+        <label for="update">Firmware update</label>
+        <input type="file"
+          id="update" name="update"
+          accept="application/binary">
+        <input type="submit"/>
+      </form>
+    </div>
+    <div>
+      <form method="post" enctype="multipart/form-data" action="/updatefs">
+      <label for="updatefs">Filesystem update</label>
+      <input type="file"
+        id="updatefs" name="updatefs"
+        accept="application/binary">
+      <input type="submit"/>
+      </form>
+    </div>
+  </body>
+</html>

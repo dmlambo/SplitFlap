@@ -29,7 +29,6 @@ ModuleConfig Config = {
   .zeroOffset = 0,
   .rpm = 15, 
   .timeZone = { 0 },
-  #include "DefaultCharMap.inc" 
 };
 
 void setup() {
@@ -48,8 +47,8 @@ void setup() {
   // D0 *DOES NOT* have a pullup.
   pinMode(HALL, INPUT_PULLUP);
 
-  // It's somewhat important where this goes, since we rely on reset timing to determine whether to forget
-  bool forgetWifi = prevResets() >= RESET_WIFI_COUNT;
+  // It's somewhat important where this goes, since we rely on reset timing to determine whether to forget WiFi or become the master
+  unsigned int resetCount = countResets();
 
   Serial.begin(57600);
 
@@ -73,17 +72,17 @@ void setup() {
     firstBoot = false;
     memcpy(&Config, EEPROM.getConstDataPtr(), sizeof(ModuleConfig));
 
-    LOGLN("Active configuration loaded from flash:");
+    LOGLN("Active configuration loaded from flash");
   } else {
     // First bootup
-    LOGLN("First time boot or config size mismatch, using defaults:");
+    LOGLN("First time boot or config size mismatch, using defaults");
   }
 
-  printConfig();
+  printConfig(&Serial);
 
   LOGLN();
 
-  printCommandHelp();
+  printCommandHelp(&Serial);
 
   // On first flash, we start in slave mode, but as a master I2C device. We wait a random amount of time
   // and try to assign our random address by first requesting data from said address. If no one responds
@@ -112,12 +111,19 @@ void setup() {
     }
 
     LOG("Found unused address "); LOGLN((int)Config.address);
-    LOGLN("Writing config...");
-    memcpy(EEPROM.getDataPtr(), &Config, sizeof(ModuleConfig));
-    EEPROM.commit();
+    saveConfig();
     LOGLN("Rebooting...");
     Serial.flush();
     ESP.reset();
+  }
+
+  LOG("Reset count: "); LOGLN(resetCount);
+  if (resetCount > 1) {
+    if (resetCount >= RESET_BECOME_MASTER) {
+      LOGLN("Reset " DEFTOLIT(RESET_BECOME_MASTER) " times, becoming master");
+      Config.isMaster = true;
+      saveConfig();
+    }
   }
 
   if (Config.isMaster) {
@@ -130,7 +136,7 @@ void setup() {
     {
       WiFiManager wifiManager;
 
-      if (forgetWifi) { 
+      if (resetCount >= RESET_WIFI_COUNT) { 
         LOGLN("WiFi credentials reset due to external button sequence");
         wifiManager.resetSettings();
       }
@@ -181,14 +187,14 @@ void loop() {
   if (Serial.available()) {
     char commandBuff[128];
     commandBuff[Serial.readBytesUntil('\0', commandBuff, sizeof(commandBuff))] = 0;
-    handleCommand(commandBuff);
+    handleCommand(commandBuff, &Serial);
   }
 
   char* i2cCommand = i2cReadCommand();
 
   if (i2cCommand && *i2cCommand) {
     //LOGLN("Reveived I2C command...");
-    handleCommand(i2cCommand);
+    handleCommand(i2cCommand, &Serial);
   }
 
   if (i2cOverflow) {
@@ -212,5 +218,9 @@ void loop() {
   if (Config.isMaster) {
     MDNS.update();
     displayEvents();
+  }
+
+  if (shouldReboot()) {
+    ESP.restart();
   }
 }

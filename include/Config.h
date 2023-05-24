@@ -40,9 +40,14 @@
 #define RTC_MAGIC 0xBEEFB015
 
 // We save the current reset count and if it goes over RESET_WIFI_COUNT we clear the wifi creds
+// or RESET_BECOME_MASTER we become a master device
+// The idea is that we really don't want to have to take off the cover. If for instance you 
+// send the wrong command and reset the master to factory, you can still bring it back to life
+// without a screwdriver
 #define RESET_WIFI_COUNT 3
-#define RESET_WIFI_SHORT_DELAY 50
-#define RESET_WIFI_LONG_DELAY 1200
+#define RESET_BECOME_MASTER 6
+#define RESET_COUNT_SHORT_DELAY 50
+#define RESET_COUNT_LONG_DELAY 1200
 
 #ifdef DISABLE_LOGGING
 #define LOGLN(...)
@@ -65,4 +70,4 @@ struct ModuleConfig {
 
 extern ModuleConfig Config;
 
-void printConfig();
+void printConfig(Print* out);

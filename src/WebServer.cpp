@@ -3,8 +3,10 @@
 #include <LittleFS.h>
 #include <Wire.h>
 
+#include "Commands.h"
 #include "Communication.h"
 #include "Display.h"
+#include "Utils.h"
 
 #include "WebServer.h"
 
@@ -105,6 +107,21 @@ void WebServerInit() {
       request->send(resp);
   });
 
+  server->on("^\\/cmd(\\/([^\\/]+)?)+$", HTTP_GET, [] (AsyncWebServerRequest *request) {
+    String url(request->url().substring(5));
+    url.replace('/', ' ');
+    AsyncResponseStream* resp = request->beginResponseStream("text/plain");
+    char cmdBuff[256] = {0};
+    resp->printf("%s\n", url.c_str());
+    strncpy(cmdBuff, url.c_str(), sizeof(cmdBuff)-1);
+    if (handleCommand(cmdBuff, resp)) {
+      resp->setCode(200);
+    } else {
+      resp->setCode(400);
+    }
+    request->send(resp);
+  });
+
   server->on("^\\/display(\\/date)?(\\/ephemeral\\/([0-9]+))?(\\/)?$", HTTP_POST, [] (AsyncWebServerRequest *request) {
     if (request->contentType() != "text/plain") {
       request->send(400, "text/plain", "Content type should be text/plain");
@@ -147,6 +164,55 @@ void WebServerInit() {
     resp->addHeader("Connection", "keep-alive");
     resp->setCode(200);
     request->send(resp);
+  });
+
+  server->onFileUpload([] (AsyncWebServerRequest *request, const String& filename, size_t index, uint8_t *data, size_t len, bool final) {
+    if(!index){
+      LOGLN("Got upload file request:");
+
+      int command = 0;
+      
+      if (request->url() == "/update") {
+        LOGLN("Firmware");
+        command = U_FLASH;
+      } else if (request->url() == "/updatefs") {
+        LOGLN("Filesystem");
+        command = U_FS;
+        close_all_fs();
+      } else {
+        LOGLN("Unknown file upload request");
+        notFound(request);
+        return;
+      }
+      LOGLN("Update begin...");
+      Update.runAsync(true);
+      size_t freeSpace = command == U_FLASH ? (ESP.getFreeSketchSpace() - 0x1000) & 0xFFFFF000 : FS_end - FS_start;
+      if (!Update.begin(freeSpace, command)) {
+        request->send(400, "text/plain", "Update begin failed: " + Update.getErrorString());
+        return;
+      }
+    }
+
+    if (Update.write(data, len) != len) {
+      request->send(400, "text/plain", "Update write underflow: " + Update.getErrorString());
+      return;
+    }
+
+    if(final){
+      LOGLN("Finished. Running update.");
+      AsyncResponseStream* resp = request->beginResponseStream("text/plain");
+      resp->setCode(200);
+      resp->printf("Update accepted... attempting to flash %d bytes (this could take a few minutes)", Update.progress());
+      LOG("Flash image size: "); LOGLN(Update.progress());
+      if (!Update.end(true)) { // We don't know the size of the file when we start.
+        resp->printf("\nUpdate failed: %s", Update.getErrorString().c_str());
+        request->send(resp);
+      } else {
+        resp->write("\nSuccess! Rebooting!");
+        request->send(resp);
+        markForReboot(500);
+      }
+    }
   });
 
   server->serveStatic("/", LittleFS, "/").setDefaultFile("index.html");

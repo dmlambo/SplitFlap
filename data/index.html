@@ -27,50 +27,52 @@
           <span class="sfChar">T</span>
         </span>
       </p>
-      <div class="modeSelector">
-        <fieldset>
-          <legend>Operational Mode</legend>
-      
-          <div class="modeLabel">
-            <input type="radio" id="custom" name="displayType" value="custom" checked/>
-            <label for="custom">Custom</label>
-            <input type="text" id="customText" name="displayType"/>
-          </div>
-
-          <div class="modeLabel">
-            <input type="radio" id="time" name="displayType" value="time"/>
-            <label for="time">Time/Date</label>
-            <input list="commonTimes" type="text" id="timeText" name="displayType"/>
-            <datalist id="commonTimes">
-              <option value="%m/%d/%y">eg 03/26/85</option>
-              <option value="%d/%m/%y">eg 26/03/85</option>
-              <option value="%T">eg 04:20:96</option>
-            </datalist>
-          </div>
-
+      <div style="display:block">
+        <div class="modeSelector">
           <fieldset>
-            <legend>Justify</legend>
-            <div class="justifyLabel">
-              <input type="radio" id="justifyLeft" name="justify"/>
-              <label for="justifyLeft">Left</label>
-              <input type="radio" id="justifyCenter" name="justify"/>
-              <label for="justifyCenter">Center</label>
-              <input type="radio" id="justifyRight" name="justify" checked/>
-              <label for="justifyRight">Right</label>
+            <legend>Operational Mode</legend>
+        
+            <div class="modeLabel">
+              <input type="radio" id="custom" name="displayType" value="custom" checked/>
+              <label for="custom">Custom</label>
+              <input type="text" id="customText" name="displayType"/>
+            </div>
+
+            <div class="modeLabel">
+              <input type="radio" id="time" name="displayType" value="time"/>
+              <label for="time">Time/Date</label>
+              <input list="commonTimes" type="text" id="timeText" name="displayType"/>
+              <datalist id="commonTimes">
+                <option value="%m/%d/%y">eg 03/26/85</option>
+                <option value="%d/%m/%y">eg 26/03/85</option>
+                <option value="%T">eg 04:20:96</option>
+              </datalist>
+            </div>
+
+            <fieldset>
+              <legend>Justify</legend>
+              <div class="justifyLabel">
+                <input type="radio" id="justifyLeft" name="justify"/>
+                <label for="justifyLeft">Left</label>
+                <input type="radio" id="justifyCenter" name="justify"/>
+                <label for="justifyCenter">Center</label>
+                <input type="radio" id="justifyRight" name="justify" checked/>
+                <label for="justifyRight">Right</label>
+              </div>
+            </fieldset>
+
+            <div class="justifyLabel submit">
+              <input type="button" value="Flap" class="flap" onclick="applyTilt();"/>
+              <div>
+                <input type="checkbox" name="ephemeral" id="ephemeral" onchange="document.getElementById('ephemeralTime').disabled = !this.checked;"/>
+                <label for="ephemeral">Ephemeral</label>
+                <input disabled type="number" min="1" max="3600" id="ephemeralTime" name="ephemeral" value="5" style="width: 50px;"/>
+                <label>sec</label>
+              </div>
             </div>
           </fieldset>
-
-          <div class="justifyLabel submit">
-            <input type="button" value="Flap" class="flap" onclick="applyTilt();"/>
-            <div>
-              <input type="checkbox" name="ephemeral" id="ephemeral" onchange="document.getElementById('ephemeralTime').disabled = !this.checked;"/>
-              <label for="ephemeral">Ephemeral</label>
-              <input disabled type="number" min="1" max="3600" id="ephemeralTime" name="ephemeral" value="5" style="width: 50px;"/>
-              <label>sec</label>
-            </div>
-          </div>
-      </fieldset>     
-    </div> 
+        </div>
+      </div>
     </h1>
     <!--[if lt IE 7]>
       <p class="browsehappy">You are using an <strong>outdated</strong> browser. Please <a href="#">upgrade your browser</a> to improve your experience.</p>

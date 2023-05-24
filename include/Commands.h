@@ -1,4 +1,4 @@
 #pragma once
 
-void printCommandHelp();
-void handleCommand(char* command);
+void printCommandHelp(Print* out);
+bool handleCommand(char* command, Print* out);

@@ -21,23 +21,23 @@ const char* wifiStatusStr(wl_status_t status) {
   return "Unknown status";
 }
 
-void printConfig() {
-  LOG("Version: "); LOGLN(VERSION);
-  LOG("isMaster: "); LOGLN(Config.isMaster);
-  LOG("address: "); LOGLN((int)Config.address);
-  LOG("zeroOffset: "); LOGLN((int)Config.zeroOffset);
-  LOG("rpm: "); LOGLN((int)Config.rpm);
+void printConfig(Print* out) {
+  out->printf("Version: %u\n", (unsigned int)VERSION);
+  out->printf("isMaster: %s\n", Config.isMaster ? "true" : "false");
+  out->printf("address: %u\n", (unsigned int)Config.address);
+  out->printf("zeroOffset: %u\n", (unsigned int)Config.zeroOffset);
+  out->printf("rpm: %u\n", (unsigned int)Config.rpm);
 
   if (Config.isMaster) {
-    LOG("timeZone: "); LOGLN(*Config.timeZone ? Config.timeZone : "<None set>");
-    LOGLN();
-    LOG("WiFi status: "); LOGLN(wifiStatusStr(WiFi.status()));
-    LOG("IP address: "); LOGLN(WiFi.localIP());
-    LOGLN();
-    LOG("Connected to "); LOG(nKnownModules); LOG(" other modules: ");
+    out->printf("timeZone: %s\n\n", *Config.timeZone ? Config.timeZone : "<None set>");
+
+    out->printf("WiFi status: %s\n", wifiStatusStr(WiFi.status()));
+    out->printf("IP address: "); WiFi.localIP().printTo(*out); out->printf("\n\n");
+    
+    out->printf("Connected to %u other modules:", (unsigned int)nKnownModules);
     for (unsigned int i = 0; i < nKnownModules; i++) {
-      LOG((int)knownModules[i]); LOG(" ");
+      out->printf(" %u", (unsigned int)knownModules[i]);
     }
-    LOGLN();
+    out->printf("\n");
   }
 }
