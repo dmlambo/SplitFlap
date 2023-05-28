@@ -7,8 +7,8 @@
 #define MOTOR_IN3 D7
 #define MOTOR_IN4 D8
 
-#define MOTOR_STEPS 4076 // Half step
-#define MOTOR_STALL_STEPS 200
+#define MOTOR_STEPS 2038
+#define MOTOR_STALL_STEPS 120
 
 #define HALL D0
 #define HALL_DEBOUNCE 5

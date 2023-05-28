@@ -7,9 +7,11 @@
 
 #include "Config.h"
 
+#include "Commands.h"
 #include "Communication.h"
 #include "Motor.h"
 #include "Display.h"
+#include "Streams.h"
 #include "Utils.h"
 
 typedef bool (*commandFunc)(unsigned char, const char**, Print* out);
@@ -21,6 +23,25 @@ struct Command {
   commandFunc function;
   bool master;
 };
+
+struct CommandParams {
+  commandFunc func;
+  char cmdBuff[256]; 
+  unsigned char nArgs;
+  const char* args[16];
+  Print* out;
+
+  bool invoke() {
+    if (func) {
+      return func(nArgs, args, out);
+    } else {
+      return false;
+    }
+  }
+};
+
+CommandParams queuedParams = {0}; // Storage
+QueuedCommand queuedCommand = { .queued = false, .params = &queuedParams };
 
 void printCommandHelp(Print* out);
 
@@ -136,6 +157,10 @@ bool sendToSlaveCommand(unsigned char nArgs, const char** args, Print* out) {
 
 bool calibrateMotorCommand(unsigned char nArgs, const char** args, Print* out) {
   motorCalibrate();
+  for (int i = 0; i < 5; i++) {
+    delay(1000);
+    out->print(".\r\n");
+  }
   return true;
 }
 
@@ -222,7 +247,7 @@ bool updateModulesCommand(unsigned char nArgs, const char** args, Print* out) {
   }
 
   if (!nModules) {
-    out->printf("All modules up to date.\n");
+    out->print("All modules up to date.\n");
     WiFi.softAPdisconnect();
     return false;
   }
@@ -279,7 +304,6 @@ bool beginUpdateCommand(unsigned char nArgs, const char** args, Print* out) {
   WiFiClient client;
   HTTPClient httpClient;
 
-  //httpClient.setReuse(true);
   httpClient.begin(client, String("http://") + WiFi.gatewayIP().toString() + "/update.bin");
   
   int responseCode = httpClient.GET();
@@ -296,7 +320,7 @@ bool beginUpdateCommand(unsigned char nArgs, const char** args, Print* out) {
   out->printf("Remote firmware size: %u\n", size);
 
   if(!Update.begin(size, U_FLASH)) {
-    out->printf("Failed: Update.begin returned false:\n");
+    out->print("Failed: Update.begin returned false:\n");
     out->printf("  %s\n", Update.getErrorString().c_str());
     httpClient.end();
     WiFi.disconnect(true, true);
@@ -315,7 +339,7 @@ bool beginUpdateCommand(unsigned char nArgs, const char** args, Print* out) {
     }
     retry = 5;
     if (Update.write(buff, read) != read) {
-      out->printf("Failed: Couldn't write all bytes from stream:\n");
+      out->print("Failed: Couldn't write all bytes from stream:\n");
       out->printf("  %s\n", Update.getErrorString().c_str());
       WiFi.disconnect(true, true);
       return false;
@@ -329,13 +353,13 @@ bool beginUpdateCommand(unsigned char nArgs, const char** args, Print* out) {
   httpClient.end();
 
   if(!Update.end()) {
-    out->printf("Failed: Update end returned false:\n");
+    out->print("Failed: Update end returned false:\n");
     out->printf("  %s\n", Update.getErrorString().c_str());
     WiFi.disconnect(true, true);
     return false;
   }
 
-  out->printf("Update finished, rebooting...\n");
+  out->print("Update finished, rebooting...\n");
   delay(1000);
   WiFi.disconnect(true, true);
   markForReboot(500);
@@ -361,21 +385,22 @@ static Command commands[] = {
 };
 
 void printCommandHelp(Print* out) {
-  out->printf("Here are the commands available to you:\n");
+  out->print("Here are the commands available to you:\n");
   for (unsigned int i = 0; i < sizeof(commands) / sizeof(commands[0]); i++) {
     if (!commands[i].master || Config.isMaster) {
-      char buff[255];
-      snprintf(buff, 255, "%8s    %s\n", commands[i].prefix, commands[i].description);
-      out->printf(buff);
+      out->printf("%8s    %s\n", commands[i].prefix, commands[i].description);
     }
   }
   if (!Config.isMaster) {
-    out->printf("Some commands not available in slave mode not shown\n");
+    out->print("Some commands not available in slave mode not shown\n");
   }  
 }
 
-// Modifies command argument!
-bool handleCommand(char* command, Print *out) {
+static bool parseCommand(char* command, CommandParams& params, Print* out) {
+  params.func = NULL;
+  params.nArgs = 0;
+  params.out = out;
+
   if (!*command) {
     out->print("Empty command buffer\n");
     return false;
@@ -383,9 +408,6 @@ bool handleCommand(char* command, Print *out) {
 
 	bool quote = false;
 	bool delim = true;
-
-	const char* args[16] = { 0 };
-	unsigned char nArgs = 0;
 
 	for (char* pos = command; *pos != 0; pos++) {
 		switch (*pos) {
@@ -401,7 +423,7 @@ bool handleCommand(char* command, Print *out) {
           delim = true;
         } else {
           if (delim) // Empty quotes serve as an argument
-            args[nArgs++] = pos;
+            params.args[params.nArgs++] = pos;
           else
             delim = true;
         }
@@ -416,7 +438,7 @@ bool handleCommand(char* command, Print *out) {
       default:
         if (delim) {
           delim = false;
-          args[nArgs++] = pos;
+          params.args[params.nArgs++] = pos;
         }
         break;
 		}
@@ -428,19 +450,53 @@ bool handleCommand(char* command, Print *out) {
   }
 
   for (unsigned int i = 0; i < sizeof(commands) / sizeof(commands[0]); i++) {
-    if ((!commands[i].master || Config.isMaster) && !strcmp(args[0], commands[i].prefix)) {
-      if (nArgs != commands[i].nArgs + 1) {
+    if ((!commands[i].master || Config.isMaster) && !strcmp(params.args[0], commands[i].prefix)) {
+      if (params.nArgs != commands[i].nArgs + 1) {
         out->printf("Command takes %d argument(s)!\n", commands[i].nArgs);
         return false;
       }
-      // If our timer is running, SPI has an issue writing to flash... likely I2C will have an issue too.
-      disableMotorTimer();
-      bool success = commands[i].function(nArgs, args, out);
-      enableMotorTimer();
-      return success;
+      params.func = commands[i].function;
+      return true;
     }
   }
   out->print("Unknown command\n");
   printCommandHelp(out);
   return false;
+}
+
+bool handleCommandAsync(char* command, Print* out) {
+  CommandParams params = {0};
+
+  if (parseCommand(command, params, out)) {
+    noInterrupts();
+    bool queued = false;
+    if (!queuedCommand.queued) {
+      queuedParams = params;
+      queued = queuedCommand.queued = true;
+      queuedCommand.finished = false;
+    }
+    interrupts();
+
+    if (!queued) {
+      out->print("Queued command overflow\n");
+      return false;
+    }
+    return true;
+  } else {
+    return false;
+  }
+}
+
+// Modifies command argument!
+bool handleCommand(char* command, Print* out) {
+  CommandParams params;
+
+  if (!parseCommand(command, params, out)) {
+    return false;
+  }
+  return handleCommand(&params);
+}
+
+bool handleCommand(CommandParams* params) {
+  return params->invoke();
 }

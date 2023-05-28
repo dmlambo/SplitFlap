@@ -7,13 +7,9 @@
 
 const bool PinStates[][4] = {
   { true, false, false, false },
-  { true, false, false, true },
   { false, false, false, true },
-  { false, false, true, true },
   { false, false, true, false },
-  { true, true, true, false },
   { false, true, false, false },
-  { true, true, false, false },
 };
 
 const char Pins[] = { MOTOR_IN1, MOTOR_IN2, MOTOR_IN3, MOTOR_IN4 };
@@ -33,7 +29,9 @@ static volatile unsigned int currentFlap = 0;
 volatile bool motorCalibrated = false;
 volatile bool motorStalled = false;
 
-void IRAM_ATTR doMotorISR() {
+void IRAM_ATTR doMotorISR(void *para, void *frame) {
+  if ((T1C & ((1 << TCAR) | (1 << TCIT))) == 0) TEIE &= ~TEIE1;//edge int disable
+  T1I = 0;
   if (motorEnabled) {
     if (deviceLastStatus != MODULE_CALIBRATING) deviceLastStatus = MODULE_MOVING;
     if (motorRunning) {
@@ -45,7 +43,7 @@ void IRAM_ATTR doMotorISR() {
         deviceLastStatus = MODULE_OK;
       } else {
         motorState++;
-        motorState %= 8;
+        motorState %= 4;
         motorStep++;
 
         if (motorStep >= MOTOR_STEPS + MOTOR_STALL_STEPS) { // Done a whole rotation without seeing the hall sensor. We've stalled.
@@ -69,7 +67,7 @@ void IRAM_ATTR doMotorISR() {
     digitalWrite(Pins[1], false);
     digitalWrite(Pins[2], false);
     digitalWrite(Pins[3], false);
-    disableMotorTimer();
+    //disableMotorTimer();
   }
 
   if (!digitalRead(HALL)) {
@@ -136,9 +134,12 @@ unsigned int motorCurrentFlap() {
 
 void motorInit() {
   disableMotorTimer();
-  timer1_attachInterrupt(doMotorISR);
+  // Subvert the Arduino core ISR, since it disables interrupts, which messes up flash.
+  ETS_FRC_TIMER1_INTR_ATTACH(doMotorISR, NULL);
+  ETS_FRC1_INTR_ENABLE();
+  //timer1_attachInterrupt(doMotorISR);
   motorSetRPM(Config.rpm);
-  //enableMotorTimer();
+  enableMotorTimer();
 }
 
 void disableMotorTimer() {

@@ -3,67 +3,31 @@
 #include <LittleFS.h>
 #include <Wire.h>
 
+#include <StreamUtils/Streams/MemoryStream.hpp>
+
 #include "Commands.h"
 #include "Communication.h"
 #include "Display.h"
+#include "Streams.h"
 #include "Utils.h"
 
 #include "WebServer.h"
 
-AsyncWebServer* server = NULL;
-
-class FlashStream : public Stream {
-  unsigned int _addrBegin;
-  unsigned int _size;
-  unsigned int _curPos;
-
+class NoDelayWebServer : public AsyncWebServer {
 public:
-  FlashStream(unsigned int addrBegin, unsigned int size) :
-    _addrBegin(addrBegin), _size(size), _curPos(0) 
-  {}
-
-  using Print::write;
-
-  int available() { return _size - _curPos; }
-
-  int read() {  
-    if (_curPos == _size) return -1;
-    unsigned char data;
-    if (!ESP.flashRead(_addrBegin + _curPos, &data, sizeof(data))) return -1;
-    _curPos++;
-    return (int)data;
+  NoDelayWebServer(uint16_t port) : AsyncWebServer(port) {
+    _server.setNoDelay(true);
   }
-
-  int peek() { 
-    if (_curPos == _size) return -1;
-    unsigned char data;
-    if (!ESP.flashRead(_addrBegin + _curPos, &data, sizeof(data))) return -1;
-    return (int)data;
-  }  
-
-  size_t write(uint8_t data) {
-    return 0;
-  }
-
-  virtual size_t readBytes(char *buffer, size_t length) {
-    unsigned int size = length;
-    if (_size - _curPos < length) size = _size - _curPos;
-    if (size) {
-      ESP.flashRead(_addrBegin + _curPos, (unsigned char*)buffer, size);
-      _curPos += size; 
-    }
-    return size;
-  }
-
-  virtual ssize_t streamRemaining () { return _size - _curPos; }
 };
+
+AsyncWebServer* server = NULL;
 
 void notFound(AsyncWebServerRequest *request) {
     request->send(404, "text/plain", "Not found");
 }
 
 void WebServerInit() {
-  server = new AsyncWebServer(80);
+  server = new NoDelayWebServer(80);
 
   server->on("/status", HTTP_GET, [] (AsyncWebServerRequest *request) {
       // So JsonArduino doesn't allow just-in-time serialization... this is a limiting factor in 
@@ -110,20 +74,40 @@ void WebServerInit() {
   server->on("^\\/cmd(\\/([^\\/]+)?)+$", HTTP_GET, [] (AsyncWebServerRequest *request) {
     String url(request->url().substring(5));
     url.replace('/', ' ');
-    AsyncResponseStream* resp = request->beginResponseStream("text/plain");
-    char cmdBuff[256] = {0};
-    resp->printf("%s\n", url.c_str());
-    strncpy(cmdBuff, url.c_str(), sizeof(cmdBuff)-1);
-    if (handleCommand(cmdBuff, resp)) {
-      resp->setCode(200);
-    } else {
-      resp->setCode(400);
-    }
+    auto memStream = new StreamUtils::MemoryStream(1024);
+    memStream->printf("Command: %s\n", url.c_str());
+    auto cmdBuff = new char[256];
+    strncpy(cmdBuff, url.c_str(), 255);
+
+    bool async = handleCommandAsync(cmdBuff, memStream);
+
+    // The content type event-stream is important to keep the browser from caching the first 1kb or so
+    AsyncWebServerResponse* resp = request->beginChunkedResponse("text/event-stream; charset=us-ascii", [memStream, async, request] (uint8_t* data, size_t len, size_t index) -> size_t {
+      if (memStream->available()) {
+        size_t read = memStream->readBytes((char*)data, len);
+        return read;
+      } else {
+        if (!async) return 0;
+        if (!queuedCommand.finished) {
+          return RESPONSE_TRY_AGAIN;
+        }
+        // We dequeue the request in onDisconnect, since we could have a disconnect in the middle of a command, which would leave the queue dangling.
+        return 0;
+      }
+    });
+    resp->setCode(async ? 200 : 400);
+    request->onDisconnect([async, cmdBuff, memStream] () {
+      if (async) {
+        queuedCommand.queued = false;
+      }
+      delete cmdBuff;
+      delete memStream;
+    });
     request->send(resp);
   });
 
   server->on("^\\/display(\\/date)?(\\/ephemeral\\/([0-9]+))?(\\/)?$", HTTP_POST, [] (AsyncWebServerRequest *request) {
-    if (request->contentType() != "text/plain") {
+    if (request->contentType() != "text/plain; ") {
       request->send(400, "text/plain", "Content type should be text/plain");
     }
   }, 

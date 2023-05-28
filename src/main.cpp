@@ -21,6 +21,8 @@
 
 #include <lwip/tcp.h>
 
+#include <ESPAsyncTCP.h>
+
 // Default config
 ModuleConfig Config = { 
   .magic = CONFIG_MAGIC + sizeof(ModuleConfig), 
@@ -195,6 +197,11 @@ void loop() {
   if (i2cCommand && *i2cCommand) {
     //LOGLN("Reveived I2C command...");
     handleCommand(i2cCommand, &Serial);
+  }
+
+  if (queuedCommand.queued && !queuedCommand.finished) {
+    handleCommand(queuedCommand.params); // TODO: Percolate error to caller
+    queuedCommand.finished = true; // mark as done
   }
 
   if (i2cOverflow) {
