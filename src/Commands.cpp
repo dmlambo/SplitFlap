@@ -85,7 +85,7 @@ bool setZeroOffsetCommand(unsigned char nArgs, const char** args, Print* out) {
   int newZero = 0;
 
   if (!argInRange(args[1], 0, 255, &newZero)) {
-    out->printf("Failed: Argument not in range 0-255\n");
+    out->print("Failed: Argument not in range 0-255\n");
     return false;
   }
 
@@ -94,7 +94,7 @@ bool setZeroOffsetCommand(unsigned char nArgs, const char** args, Print* out) {
   EEPROM.commit();
 
   out->printf("New zero point set to %u\n", newZero);
-  motorCalibrate();
+  motorMoveToFlap(motorCurrentFlap());
   return true;
 }
 
@@ -157,10 +157,6 @@ bool sendToSlaveCommand(unsigned char nArgs, const char** args, Print* out) {
 
 bool calibrateMotorCommand(unsigned char nArgs, const char** args, Print* out) {
   motorCalibrate();
-  for (int i = 0; i < 5; i++) {
-    delay(1000);
-    out->print(".\r\n");
-  }
   return true;
 }
 

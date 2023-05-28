@@ -135,12 +135,21 @@ void setup() {
     Wire.setClock(I2C_FREQUENCY);
     Wire.setClockStretchLimit(40000);
 
+    // Find all other devices
+    enumerateModules();      
+
     {
       WiFiManager wifiManager;
 
       if (resetCount >= RESET_WIFI_COUNT) { 
         LOGLN("WiFi credentials reset due to external button sequence");
         wifiManager.resetSettings();
+      }
+
+      if (WiFi.getAutoConnect()) {
+        displayMessage("conn...", sizeof("conn...")-1);
+      } else {
+        displayMessage("AP on", sizeof("AP on")-1);
       }
 
       LOGLN("Connecting to WiFi...");
@@ -158,6 +167,11 @@ void setup() {
     // Not sure if needed, but we should probably wait for lwip's fast and slow timer procs to run (250/500ms)
     delay(1000);;
 
+    if (Config.isMaster) {
+      displayMessage("", 0);
+      displayMessage("Conn!", sizeof("Conn!")-1, 10);
+    }
+
     if (!MDNS.begin(WIFI_MDNS_HOSTNAME)) {
       LOGLN("Failed to create MDNS responder");
     }
@@ -166,9 +180,6 @@ void setup() {
     WebServerInit();
 
     MDNS.addService("http", "tcp", 80);
-
-    // Find all other devices
-    enumerateModules();
     
     LOG("Found "); LOG(nKnownModules); LOGLN(" other I2C devices.");
   } else {
@@ -181,7 +192,6 @@ void setup() {
   }
 
   motorInit();
-  motorCalibrate();
 }
 
 void loop() {

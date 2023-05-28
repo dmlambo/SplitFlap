@@ -8,6 +8,7 @@
 #include "Commands.h"
 #include "Communication.h"
 #include "Display.h"
+#include "Motor.h"
 #include "Streams.h"
 #include "Utils.h"
 
@@ -38,6 +39,8 @@ void WebServerInit() {
 
       doc["modules"][0]["address"] = "master";
       doc["modules"][0]["status"] = StatusStr[deviceLastStatus];
+      doc["modules"][0]["zeroOffset"] = (unsigned char)Config.zeroOffset;
+      doc["modules"][0]["flapNumber"] = motorCurrentFlap();
       doc["modules"][0]["version"] = VERSION;
 
       for (int i = 0; i < nKnownModules; i++) {
