@@ -147,9 +147,9 @@ void setup() {
       }
 
       if (WiFi.getAutoConnect()) {
-        displayMessage("conn...", sizeof("conn...")-1);
+        //displayMessage("conn...", sizeof("conn...")-1);
       } else {
-        displayMessage("AP on", sizeof("AP on")-1);
+        //displayMessage("AP on", sizeof("AP on")-1);
       }
 
       LOGLN("Connecting to WiFi...");
@@ -168,8 +168,8 @@ void setup() {
     delay(1000);;
 
     if (Config.isMaster) {
-      displayMessage("", 0);
-      displayMessage("Conn!", sizeof("Conn!")-1, 10);
+      //displayMessage("", 0);
+      //displayMessage("Conn!", sizeof("Conn!")-1, 10);
     }
 
     if (!MDNS.begin(WIFI_MDNS_HOSTNAME)) {

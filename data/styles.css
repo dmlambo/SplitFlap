@@ -1,3 +1,24 @@
+.shellContainer {
+  width: 100%;
+  display: flex;
+  place-items: center;
+  align-items: stretch;
+  flex-flow: column;
+}
+.shellItem {
+  min-width: 300px;
+  width: 100%;
+  display: flex;
+  padding: 4px;
+}
+.shellArea {
+  resize: vertical;
+  width: 100%;
+  min-height: 300px;
+}
+.shellInput {
+  width: 100%;
+}
 .sfFont {
   font-family:Courier New,Courier,monospace;
 }
@@ -15,6 +36,7 @@ legend {
   font-size:16px;
 }
 .modeSelector {
+  min-width: 400px;
   display: flex;
   justify-content: center;
   align-items: center;
@@ -33,7 +55,6 @@ legend {
   display: flex;
   justify-content: space-between;
 }
-
 .flap {
   font-family:Courier New,Courier,monospace;
   font-size:20px;

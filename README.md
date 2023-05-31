@@ -13,5 +13,8 @@ The main difference between the two projects is in the software. Since David's m
 Similarly, the web interface does a few things for you. There is a frontend to change what's displayed, and to change, for example, the timezone and date formating. However, there is also a RESTful API available if someone wanted to make their own front end.
 Finally, indeed the software uses the Arduino platform code, but rather than being an Arduino project, it is a PlatformIO project. This was important for organization, since the way Arudino mangles up your code means compartmentalizing is often impossible.
 
+## Wire implementation
+The ESP8266 core has a bad I2C implementation. I've patched it up manually to keep it from doing weird things, and destabilizing the system, such as doing clock stretching in odd places. Basically anything around the stop condition is wonky.
+
 ## Future
 I'd like to expand the software a little bit. For instance, I would like to go off-spec on I2C and give each module multiple addresses to get certain tasks done, like multi-client firmware update over I2C, and broadcast messages used to reset everything all at once, or to make sure all the clicks and clacks are perfectly in sync with a start signal.

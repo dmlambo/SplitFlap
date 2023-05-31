@@ -67,7 +67,7 @@ void IRAM_ATTR doMotorISR(void *para, void *frame) {
     digitalWrite(Pins[1], false);
     digitalWrite(Pins[2], false);
     digitalWrite(Pins[3], false);
-    //disableMotorTimer();
+    disableMotorTimer();
   }
 
   if (!digitalRead(HALL)) {
@@ -135,11 +135,11 @@ unsigned int motorCurrentFlap() {
 void motorInit() {
   disableMotorTimer();
   // Subvert the Arduino core ISR, since it disables interrupts, which messes up flash.
+  //timer1_attachInterrupt(doMotorISR); <- no!
   ETS_FRC_TIMER1_INTR_ATTACH(doMotorISR, NULL);
   ETS_FRC1_INTR_ENABLE();
-  //timer1_attachInterrupt(doMotorISR);
   motorSetRPM(Config.rpm);
-  enableMotorTimer();
+  //enableMotorTimer();
 }
 
 void disableMotorTimer() {

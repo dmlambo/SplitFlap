@@ -156,6 +156,7 @@ bool sendToSlaveCommand(unsigned char nArgs, const char** args, Print* out) {
 }
 
 bool calibrateMotorCommand(unsigned char nArgs, const char** args, Print* out) {
+  out->print("Calibrating...");
   motorCalibrate();
   return true;
 }
@@ -237,7 +238,7 @@ bool updateModulesCommand(unsigned char nArgs, const char** args, Print* out) {
   for (int i = 0; i < nKnownModules; i++) {
     ModuleStatus status;
     PacketStatus packetStatus = i2cReadStruct(knownModules[i], &status);
-    if ((packetStatus == PACKET_OK && status.version != VERSION) || packetStatus != PACKET_EMPTY) {
+    if ((packetStatus == PACKET_OK && status.version != VERSION) || packetStatus > PACKET_EMPTY) {
       staleModules[nModules++] = knownModules[i];
     }
   }
@@ -248,34 +249,48 @@ bool updateModulesCommand(unsigned char nArgs, const char** args, Print* out) {
     return false;
   }
 
-  for (int i = 0; i < nModules; i++) {
-    char retries = I2C_RETRIES;
+  moduleContacted = false; // Modules who have connected to us.
+  moduleFinishedUpdate = false; // Modules who have ended the connection.
 
+  out->printf("%u modules need updating...\n", nModules);
+
+  for (int n = 0; n < nModules; n++) {
+    char retries = I2C_RETRIES;
     while (retries--) {
-      delay(10);
-      Wire.beginTransmission(staleModules[i]);
+      out->printf("Contacting %d...\n", staleModules[n]);
+
+      Wire.beginTransmission(staleModules[n]);
       Wire.write(moduleCmd);
       Wire.write(0);
-      if (!Wire.endTransmission()) {
-        retries = 0;
+      Wire.endTransmission();
+
+      unsigned int startMillis = millis();
+      do {
+        delay(1000);
+        if (moduleContacted) {
+          out->print("Module contacted! Waiting for it to finish updating...\n");
+          retries = 0;
+          break;
+        }
+      } while (millis() - startMillis < 10000);
+    }
+    if (moduleContacted) {
+      for (int i = 0; i < 50; i++) { // Wait 2:50
+        out->print("Waiting...\n");
+        delay(3000);
+        if (moduleFinishedUpdate) {
+          break;
+        }
       }
     }
-  }
-
-  modulesContacted = 0; // Modules who have connected to us.
-  modulesFinishedUpdate = 0; // Modules who have ended the connection.
-
-  out->printf("Contacted %u modules...\n", nModules);
-  out->printf("Waiting for connections...\n");
-  unsigned long curMillis = millis();
-  while (millis() - curMillis < 300000) {
-    out->printf("%u modules have made contact, %u have finished downloading.\n", modulesContacted, modulesFinishedUpdate);
-    if (modulesFinishedUpdate == nModules) {
-      out->printf("All modules finished downloading firmware!\n");
-      break;
+    if (moduleFinishedUpdate) {
+      out->print("Done!\n");
+    } else {
+      out->print("Failed to update, moving on...\n");
     }
-    delay(1000);
+    moduleFinishedUpdate = moduleContacted = false;
   }
+
   // TODO: Get status from each module and compare against this one.
   out->printf("Done... check status for version numbers.\n");
 

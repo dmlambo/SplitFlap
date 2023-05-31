@@ -90,6 +90,7 @@ void displayEvents() {
         Wire.write(buff);
         Wire.write(0);
         res = Wire.endTransmission();
+        delayMicroseconds(500); // To make it easier to see in the logic analyzer
       } while (res != 0 && nRetries--);
     }
 

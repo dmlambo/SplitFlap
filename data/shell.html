@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="styles.css">
+  <title>SplitFlap Shell</title>
+  <script>
+    function handlePost() {
+      const shellResponse = document.getElementById("shellResponse")
+      const shellInput = document.getElementById("shellInput")
+      const shellSubmit = document.getElementById("shellSubmit")
+      const request = new XMLHttpRequest()
+      var lastIndex = 0
+
+      shellResponse.value += shellInput.value + "\n"
+
+      request.onprogress = () => {
+        const curIndex = request.responseText.length
+        shellResponse.value += request.responseText.substring(lastIndex, curIndex)
+        lastIndex = curIndex
+        shellResponse.scrollTop = shellResponse.scrollHeight
+      }
+
+      request.onreadystatechange = () => {
+        if (request.readyState === XMLHttpRequest.DONE) {
+          if (request.status === 200) {
+            shellResponse.value += "\nDone\n"
+          } else {
+            shellResponse.value += "\nFailed!\n"
+          }
+          shellInput.enabled = true
+          shellSubmit.enabled = true
+        }
+        shellResponse.scrollTop = shellResponse.scrollHeight
+      }
+      
+      shellInput.enabled = false
+      shellSubmit.enabled = false
+
+      request.open("POST", "/cmd")
+      request.send(shellInput.value)
+      shellInput.value = ""
+    }
+
+    function handlePromptKeyDown() {
+      if (event.key === 'Enter') {
+        handlePost()
+      }
+    }
+  </script>
+</head>
+<body>
+  <div class="shellContainer">
+    <div class="shellItem">
+      <textarea class="shellArea" placeholder="Response..." id="shellResponse" readonly></textarea>
+    </div>
+    <div class="shellItem">
+      <input id="shellInput" class="shellInput" onkeydown="handlePromptKeyDown()" type="text">
+      <input id="shellSubmit" type="submit" onclick="handlePost(this)" placeholder="Enter shell command"/>
+    </div>
+  </div>
+</body>
+</html>

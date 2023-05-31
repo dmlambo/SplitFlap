@@ -50,8 +50,8 @@ extern bool i2cOverflow;
 extern Status deviceLastStatus;
 extern unsigned char knownModules[];
 extern unsigned char nKnownModules;
-extern unsigned char modulesContacted;
-extern unsigned char modulesFinishedUpdate;
+extern bool moduleContacted;
+extern bool moduleFinishedUpdate;
 
 void enumerateModules();
 void onRequestI2C();

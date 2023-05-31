@@ -14,6 +14,33 @@
 
 #include "WebServer.h"
 
+struct StaticAllocator {
+  char* _buff;
+  size_t _pos;
+  size_t _size;
+
+  StaticAllocator(char* buff, size_t size) {
+    _buff = buff;
+    _pos = 0;
+    _size = size;
+  }
+
+  void* allocate(size_t n) {
+    if (_pos + n > _size) return 0;
+    char* ret = _buff+_pos;
+    _pos += n;
+    return ret;
+  }
+
+  void deallocate(void* p) {
+  }
+};
+
+// We store these buffers globally since they're so large, and cause crazy heap fragmentation, and eventual crashes.
+char cmdBuff[128]; // Async command buffer
+char memBuff[512]; // Async logging stream
+StreamUtils::BasicMemoryStream<StaticAllocator> memStream(sizeof(memBuff), StaticAllocator(memBuff, sizeof(memBuff)));
+
 class NoDelayWebServer : public AsyncWebServer {
 public:
   NoDelayWebServer(uint16_t port) : AsyncWebServer(port) {
@@ -74,39 +101,57 @@ void WebServerInit() {
       request->send(resp);
   });
 
-  server->on("^\\/cmd(\\/([^\\/]+)?)+$", HTTP_GET, [] (AsyncWebServerRequest *request) {
-    String url(request->url().substring(5));
-    url.replace('/', ' ');
-    auto memStream = new StreamUtils::MemoryStream(1024);
-    memStream->printf("Command: %s\n", url.c_str());
-    auto cmdBuff = new char[256];
-    strncpy(cmdBuff, url.c_str(), 255);
+  server->on("/cmd", HTTP_POST, [] (AsyncWebServerRequest *request) {
+    if (request->contentType() != "text/plain") {
+      request->send(400, "text/plain", "Content type should be text/plain");
+    }
+    if (request->contentLength() == 0) {
+      request->send(400, "text/plain", "Empty request");
+    }
+  },
+  NULL,
+  [] (AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) {
+    if (index == 0) {
+      // gets deleted in the request destructor
+      memStream.flush();
+    }
 
-    bool async = handleCommandAsync(cmdBuff, memStream);
+    if ((unsigned int)memStream.available() + len > 255) {
+      request->send(400, "text/plain", "Request longer than 255");
+      return;
+    }
 
-    // The content type event-stream is important to keep the browser from caching the first 1kb or so
-    AsyncWebServerResponse* resp = request->beginChunkedResponse("text/event-stream; charset=us-ascii", [memStream, async, request] (uint8_t* data, size_t len, size_t index) -> size_t {
-      if (memStream->available()) {
-        size_t read = memStream->readBytes((char*)data, len);
-        return read;
-      } else {
-        if (!async) return 0;
-        if (!queuedCommand.finished) {
-          return RESPONSE_TRY_AGAIN;
+    memStream.write(data, len);
+
+    if (index + len == total) {
+      cmdBuff[memStream.readBytes(cmdBuff, 255)] = 0;
+
+      Serial.printf("Command buff: %s\n", cmdBuff);
+
+      bool async = handleCommandAsync(cmdBuff, &memStream);
+
+      // The content type event-stream is important to keep the browser from caching the first 1kb or so
+      AsyncWebServerResponse* resp = request->beginChunkedResponse("text/event-stream; charset=us-ascii", [async, request] (uint8_t* data, size_t len, size_t index) -> size_t {
+        if (memStream.available()) {
+          size_t read = memStream.readBytes((char*)data, len);
+          return read;
+        } else {
+          if (!async) return 0;
+          if (!queuedCommand.finished) {
+            return RESPONSE_TRY_AGAIN;
+          }
+          // We dequeue the request in onDisconnect, since we could have a disconnect in the middle of a command, which would leave the queue dangling.
+          return 0;
         }
-        // We dequeue the request in onDisconnect, since we could have a disconnect in the middle of a command, which would leave the queue dangling.
-        return 0;
-      }
-    });
-    resp->setCode(async ? 200 : 400);
-    request->onDisconnect([async, cmdBuff, memStream] () {
-      if (async) {
-        queuedCommand.queued = false;
-      }
-      delete cmdBuff;
-      delete memStream;
-    });
-    request->send(resp);
+      });
+      resp->setCode(async ? 200 : 400);
+      request->onDisconnect([async] () {
+        if (async) {
+          queuedCommand.queued = false;
+        }
+      });
+      request->send(resp);
+    }
   });
 
   server->on("^\\/display(\\/date)?(\\/ephemeral\\/([0-9]+))?(\\/)?$", HTTP_POST, [] (AsyncWebServerRequest *request) {
@@ -145,8 +190,8 @@ void WebServerInit() {
 
   server->on("/update.bin", HTTP_GET, [] (AsyncWebServerRequest *request) {
     FlashStream* sketchFlashStream = new FlashStream(0, ESP.getSketchSize());
-    modulesContacted++;
-    request->onDisconnect([sketchFlashStream] (void) { delete sketchFlashStream; modulesFinishedUpdate++; });
+    moduleContacted = true;
+    request->onDisconnect([sketchFlashStream] (void) { delete sketchFlashStream; moduleFinishedUpdate = true; });
     AsyncWebServerResponse* resp = request->beginResponse(*sketchFlashStream, "application/binary", ESP.getSketchSize());
     resp->addHeader("Connection", "keep-alive");
     resp->setCode(200);

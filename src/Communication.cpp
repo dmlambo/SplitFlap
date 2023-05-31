@@ -28,8 +28,8 @@ bool i2cOverflow = false;
 Status deviceLastStatus = MODULE_OK;
 unsigned char knownModules[DISPLAY_MAX_MODULES] = {0};
 unsigned char nKnownModules = 0;
-unsigned char modulesContacted = 0;
-unsigned char modulesFinishedUpdate = 0;
+bool moduleContacted = 0;
+bool moduleFinishedUpdate = 0;
 
 void enumerateModules() {
   for (unsigned char i = I2C_DEVADDR_MIN; i <= I2C_DEVADDR_MAX && nKnownModules < DISPLAY_MAX_MODULES; i++) {

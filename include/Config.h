@@ -15,7 +15,7 @@
 
 #define MOTOR_FLAPS 45
 
-#define I2C_FREQUENCY 40000
+#define I2C_FREQUENCY 25000
 #define I2C_BUFF_LEN 256
 // As per I2C protocol
 #define I2C_DEVADDR_MIN 8
