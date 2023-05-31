@@ -14,6 +14,11 @@
 #include "Streams.h"
 #include "Utils.h"
 
+#define MOTOR_FLAPS_MAX 44
+#if MOTOR_FLAPS_MAX != (MOTOR_FLAPS - 1)
+#error Since we can't do arithmetic in macros, you'll need to set this yourself
+#endif
+
 typedef bool (*commandFunc)(unsigned char, const char**, Print* out);
 
 struct Command {
@@ -101,8 +106,8 @@ bool setZeroOffsetCommand(unsigned char nArgs, const char** args, Print* out) {
 bool setSpeedCommand(unsigned char nArgs, const char** args, Print* out) {
   int newSpeed = 0;
 
-  if (!argInRange(args[1], 1, 30, &newSpeed)) {
-    out->printf("Failed: Argument not in range 1-30\n");
+  if (!argInRange(args[1], 1, MOTOR_MAX_SPEED, &newSpeed)) {
+    out->printf("Failed: Argument not in range 1-" DEFTOLIT(MOTOR_MAX_SPEED) "\n");
     return false;
   }
 
@@ -391,12 +396,12 @@ bool enumerateDevicesCommand(unsigned char nArgs, const char** args, Print* out)
 
 static Command commands[] = {
   { "h",      0, "Show this help",                                                                showHelpCommand,        false },
-  { "f",      1, "Move to flap (f [0-" DEFTOLIT((MOTOR_FLAPS - 1))"])",                           moveToFlapCommand,      false },
+  { "f",      1, "Move to flap (f [0-" DEFTOLIT(MOTOR_FLAPS_MAX) "])",                            moveToFlapCommand,      false },
   { "m",      1, "Set master mode (m [0|1])",                                                     setMasterCommand,       false },
   { "a",      1, "Set address (a [" DEFTOLIT(I2C_DEVADDR_MIN) "-" DEFTOLIT(I2C_DEVADDR_MAX) "])", setAddressCommand,      false },
   { "z",      1, "Set zero point offset (z [0-255])",                                             setZeroOffsetCommand,   false },
   { "c",      0, "Calibrate motor to 0 position",                                                 calibrateMotorCommand,  false },
-  { "s",      1, "Speed in RPM (s [1-30])",                                                       setSpeedCommand,        false },
+  { "s",      1, "Speed in RPM (s [1-" DEFTOLIT(MOTOR_MAX_SPEED) "])",                            setSpeedCommand,        false },
   { "r",      0, "Reset",                                                                         resetCommand,           false },
   { "cfg",    0, "Show configuration",                                                            showConfigCommand,      false },
   { "msg",    3, "Display message (msg \"message\" 10 0)",                                        displayCommand,         true },

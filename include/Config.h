@@ -14,6 +14,7 @@
 #define HALL_DEBOUNCE 5
 
 #define MOTOR_FLAPS 45
+#define MOTOR_MAX_SPEED 30
 
 #define I2C_FREQUENCY 25000
 #define I2C_BUFF_LEN 256
