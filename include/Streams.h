@@ -48,3 +48,42 @@ public:
 
   virtual ssize_t streamRemaining () { return _size - _curPos; }
 };
+
+template<class T>
+class BlockingStream : public T {
+private:
+  unsigned int _timeout = 1000; // millis
+
+public:
+  using T::T;
+
+  void setWriteTimeout(unsigned int timeout) {
+    _timeout = timeout;
+  }
+
+  size_t write(uint8_t data) {
+    size_t written = T::write(data);
+    for (unsigned long startMillis = millis(); !written && millis() - startMillis < _timeout; yield()) {
+      written = T::write(data);
+    }
+    return written;
+  }
+
+  size_t write(const char *buffer, size_t size) {
+    size_t written = T::write(buffer, size);
+    for (unsigned long startMillis = millis(); written < size && millis() - startMillis < _timeout; yield()) {
+      written += T::write(buffer+written, size-written);
+    }
+    return written;
+  }
+
+  size_t write(const uint8_t *buffer, size_t size) {
+    size_t written = T::write(buffer, size);
+    for (unsigned long startMillis = millis(); written < size && millis() - startMillis < _timeout; yield()) {
+      written += T::write(buffer+written, size-written);
+    }
+    return written;
+  }
+
+  using T::write;
+};

@@ -32,9 +32,10 @@ bool moduleContacted = 0;
 bool moduleFinishedUpdate = 0;
 
 void enumerateModules() {
+  nKnownModules = 0;
   for (unsigned char i = I2C_DEVADDR_MIN; i <= I2C_DEVADDR_MAX && nKnownModules < DISPLAY_MAX_MODULES; i++) {
     ModuleStatus status;
-    if (i2cReadStruct(i, &status) != PACKET_EMPTY) {
+    if (i2cReadStruct(i, &status) == PACKET_OK) {
       knownModules[nKnownModules++] = i;
     }
   }
@@ -73,20 +74,20 @@ template<typename T> PacketStatus i2cReadStruct(unsigned char addr, T* dst, unsi
       if (Wire.readBytes((unsigned char*)&crc, sizeof(crc)) != sizeof(crc)) {
         //LOGLN("CRC Length");
         status = P_STATUS(status, PACKET_UNDERFLOW);
-        break;
+        continue;
       }
       unsigned char packetRead = Wire.readBytes((unsigned char*)dst, sizeof(T));
       if (packetRead != sizeof(T)) {
         //LOG("Packet size: "); LOG(sizeof(T)); LOG(" read: "); LOGLN(packetRead);
         status = P_STATUS(status, PACKET_UNDERFLOW);
-        break;
+        continue;
       }
       delay(1);
       unsigned int packetCrc = CRC32::calculate(dst, 1);
       if (packetCrc != crc) {
         //LOG("Packet CRC: "); LOG(packetCrc); LOG(" CRC: "); LOGLN(crc);
         status = P_STATUS(status, PACKET_CRC);
-        break;
+        continue;
       }
     } else {
       //LOG("Packet length: "); LOG(sizeof(ModulePacket<T>)); LOG(" read: "); LOGLN(nRead);
@@ -97,7 +98,7 @@ template<typename T> PacketStatus i2cReadStruct(unsigned char addr, T* dst, unsi
       } else {
         status = P_STATUS(status, PACKET_OVERFLOW);
       }
-      break;
+      continue;
     }
     return PACKET_OK;
   }

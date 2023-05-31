@@ -136,7 +136,7 @@ void setup() {
     Wire.setClockStretchLimit(40000);
 
     // Find all other devices
-    enumerateModules();      
+    enumerateModules(); 
 
     {
       WiFiManager wifiManager;
@@ -185,6 +185,8 @@ void setup() {
   } else {
       LOG("Starting in slave mode at address "); LOGLN((int)Config.address);
       Wire.begin(Config.address);
+      pinMode(SDA, INPUT); // Turn off pullups
+      pinMode(SCL, INPUT); 
       Wire.setClock(I2C_FREQUENCY);
       Wire.setClockStretchLimit(40000);
       Wire.onRequest(onRequestI2C);

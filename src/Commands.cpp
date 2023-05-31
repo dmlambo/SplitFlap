@@ -201,6 +201,8 @@ bool displayCommand(unsigned char nArgs, const char** args, Print* out) {
     return false;
   }
 
+  out->printf("Displaying \"%s\"\n", args[2]);
+  
   displayMessage(args[1], strlen(args[1]), ephemeral, time);
   return true;
 }
@@ -216,6 +218,8 @@ bool showConfigCommand(unsigned char nArgs, const char** args, Print* out) {
 }
 
 bool updateModulesCommand(unsigned char nArgs, const char** args, Print* out) {
+  out->print("Beginning module update procedure...");
+
   const char* SSID = "SFUpd";
   const char* moduleCmd = "cu SFUpd";
 
@@ -299,11 +303,12 @@ bool updateModulesCommand(unsigned char nArgs, const char** args, Print* out) {
 }
 
 bool beginUpdateCommand(unsigned char nArgs, const char** args, Print* out) {
+  out->printf("Starting WiFi update process...\n");
+
   WiFi.enableSTA(true);
   WiFi.setAutoReconnect(false);
   WiFi.begin(args[1]);
 
-  out->printf("Starting WiFi update process...\n");
   out->printf("Connecting to SSID %s\n", args[1]);
 
   if (!WiFi.waitForConnectResult(60000)) {
@@ -377,6 +382,13 @@ bool beginUpdateCommand(unsigned char nArgs, const char** args, Print* out) {
   return true;
 }
 
+bool enumerateDevicesCommand(unsigned char nArgs, const char** args, Print* out) {
+  out->print("Enumerating devices...\n");
+  enumerateModules();
+  out->printf("Found %d devices.\n", nKnownModules);
+  return true;
+}
+
 static Command commands[] = {
   { "h",      0, "Show this help",                                                                showHelpCommand,        false },
   { "f",      1, "Move to flap (f [0-" DEFTOLIT((MOTOR_FLAPS - 1))"])",                           moveToFlapCommand,      false },
@@ -388,6 +400,7 @@ static Command commands[] = {
   { "r",      0, "Reset",                                                                         resetCommand,           false },
   { "cfg",    0, "Show configuration",                                                            showConfigCommand,      false },
   { "msg",    3, "Display message (msg \"message\" 10 0)",                                        displayCommand,         true },
+  { "e",      0, "Reenumerate devices",                                                           enumerateDevicesCommand,true },
   { "x",      2, "Send command to slave (x [0-" DEFTOLIT(I2C_DEVADDR_MAX) "] \"...\")",           sendToSlaveCommand,     true },
   { "tz",     1, "Set POSIX timezone (tz \"PST8PDT,M3.2.0/2:00:00,M11.1.0/2:00:00\")",            setTimezoneCommand,     true },
   { "cu",     1, "Connect to adhoc update AP (cu UpdateSSID)",                                    beginUpdateCommand,     false },

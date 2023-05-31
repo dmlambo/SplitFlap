@@ -39,7 +39,7 @@ struct StaticAllocator {
 // We store these buffers globally since they're so large, and cause crazy heap fragmentation, and eventual crashes.
 char cmdBuff[128]; // Async command buffer
 char memBuff[512]; // Async logging stream
-StreamUtils::BasicMemoryStream<StaticAllocator> memStream(sizeof(memBuff), StaticAllocator(memBuff, sizeof(memBuff)));
+BlockingStream<StreamUtils::BasicMemoryStream<StaticAllocator>> memStream(sizeof(memBuff), StaticAllocator(memBuff, sizeof(memBuff)));
 
 class NoDelayWebServer : public AsyncWebServer {
 public:

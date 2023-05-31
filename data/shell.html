@@ -30,14 +30,14 @@
           } else {
             shellResponse.value += "\nFailed!\n"
           }
-          shellInput.enabled = true
-          shellSubmit.enabled = true
+          shellInput.disabled = false
+          shellSubmit.disabled = false
         }
         shellResponse.scrollTop = shellResponse.scrollHeight
       }
       
-      shellInput.enabled = false
-      shellSubmit.enabled = false
+      shellInput.disabled = true
+      shellSubmit.disabled = true
 
       request.open("POST", "/cmd")
       request.send(shellInput.value)
