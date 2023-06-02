@@ -1,4 +1,4 @@
-const unsigned char CharFlapMap[] = {
+const unsigned char CharFlapMap[128-32] = {
   // Starts at 32
   0,  // " " 
   43, // "!" 
@@ -95,4 +95,5 @@ const unsigned char CharFlapMap[] = {
   0,  // "|" 
   0,  // "}" 
   0,  // "~" 
+  0,  // DEL
 };

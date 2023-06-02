@@ -7,6 +7,18 @@ async function applyTilt() {
   var uri = "display";
   var content = document.getElementById('customText').value
 
+  switch (justifyMode.id) {
+    case "justifyLeft":
+      uri += "/left"
+      break
+    case "justifyRight":
+      uri += "/right"
+      break
+    case "justifyCenter":
+      uri += "/center"
+      break
+  }
+
   if (inputMode.id == "time") {
     uri += "/date"
     content = document.getElementById('timeText').value

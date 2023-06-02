@@ -30,6 +30,7 @@ ModuleConfig Config = {
   .address = 0, 
   .zeroOffset = 0,
   .rpm = 15, 
+  .multilineDelay = 6000,
   .timeZone = { 0 },
 };
 
@@ -128,6 +129,8 @@ void setup() {
     }
   }
 
+  motorInit();
+
   if (Config.isMaster) {
     LOGLN("Starting in master mode.");
 
@@ -136,20 +139,19 @@ void setup() {
     Wire.setClockStretchLimit(40000);
 
     // Find all other devices
-    enumerateModules(); 
+    enumerateModules();
 
     {
       WiFiManager wifiManager;
 
+      wifiManager.setAPCallback([] (WiFiManager *myWiFiManager) {
+        displayMessage("USE AP", sizeof("USE AP")-1, 0, 0, JustifyCenter);
+        displayEvents(); // Normally done in loop
+      });
+
       if (resetCount >= RESET_WIFI_COUNT) { 
         LOGLN("WiFi credentials reset due to external button sequence");
         wifiManager.resetSettings();
-      }
-
-      if (WiFi.getAutoConnect()) {
-        //displayMessage("conn...", sizeof("conn...")-1);
-      } else {
-        //displayMessage("AP on", sizeof("AP on")-1);
       }
 
       LOGLN("Connecting to WiFi...");
@@ -158,6 +160,7 @@ void setup() {
         LOGLN("Failed to connect to network. Retrying.");
       }
       LOGLN("Success!");
+      displayMessage(" ", 1); // Calibrate
     }
 
     delay(1000);
@@ -166,11 +169,6 @@ void setup() {
 
     // Not sure if needed, but we should probably wait for lwip's fast and slow timer procs to run (250/500ms)
     delay(1000);;
-
-    if (Config.isMaster) {
-      //displayMessage("", 0);
-      //displayMessage("Conn!", sizeof("Conn!")-1, 10);
-    }
 
     if (!MDNS.begin(WIFI_MDNS_HOSTNAME)) {
       LOGLN("Failed to create MDNS responder");
@@ -192,8 +190,6 @@ void setup() {
       Wire.onRequest(onRequestI2C);
       Wire.onReceive(onReceiveI2C);
   }
-
-  motorInit();
 }
 
 void loop() {

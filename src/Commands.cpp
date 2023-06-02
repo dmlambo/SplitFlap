@@ -4,6 +4,7 @@
 #include <ESP8266WiFi.h>
 #include <ESP8266HTTPClient.h>
 #include <Wire.h>
+#include <alloca.h>
 
 #include "Config.h"
 
@@ -59,8 +60,7 @@ bool resetCommand(unsigned char nArgs, const char** args, Print* out) {
 bool factoryResetCommand(unsigned char nArgs, const char** args, Print* out) {
   out->printf("Resetting to factory defaults...\n");
   Config.magic = ~CONFIG_MAGIC;
-  memcpy(EEPROM.getDataPtr(), &Config, sizeof(ModuleConfig));
-  EEPROM.commit();
+  saveConfig();
   Serial.flush();
   markForReboot(500);
   return true;
@@ -76,8 +76,7 @@ bool setAddressCommand(unsigned char nArgs, const char** args, Print* out) {
   }
 
   Config.address = slaveAddr;
-  memcpy(EEPROM.getDataPtr(), &Config, sizeof(ModuleConfig));
-  EEPROM.commit();
+  saveConfig();
 
   out->printf("New address set to %u\n", slaveAddr);
   out->printf("Resetting...\n");
@@ -95,8 +94,7 @@ bool setZeroOffsetCommand(unsigned char nArgs, const char** args, Print* out) {
   }
 
   Config.zeroOffset = newZero;
-  memcpy(EEPROM.getDataPtr(), &Config, sizeof(ModuleConfig));
-  EEPROM.commit();
+  saveConfig();
 
   out->printf("New zero point set to %u\n", newZero);
   motorMoveToFlap(motorCurrentFlap());
@@ -112,8 +110,7 @@ bool setSpeedCommand(unsigned char nArgs, const char** args, Print* out) {
   }
 
   Config.rpm = newSpeed;
-  memcpy(EEPROM.getDataPtr(), &Config, sizeof(ModuleConfig));
-  EEPROM.commit();
+  saveConfig();
 
   out->printf("New speed set to %u\n", newSpeed);
   motorSetRPM(newSpeed);
@@ -129,8 +126,7 @@ bool setMasterCommand(unsigned char nArgs, const char** args, Print* out) {
   }
 
   Config.isMaster = newMaster;
-  memcpy(EEPROM.getDataPtr(), &Config, sizeof(ModuleConfig));
-  EEPROM.commit();
+  saveConfig();
 
   if (newMaster) {
     out->printf("Now set to master.\n");
@@ -143,7 +139,7 @@ bool setMasterCommand(unsigned char nArgs, const char** args, Print* out) {
   return true;
 }
 
-bool sendToSlaveCommand(unsigned char nArgs, const char** args, Print* out) {
+bool sendToModuleCommand(unsigned char nArgs, const char** args, Print* out) {
   int slaveAddr = 0;
 
   if (!argInRange(args[1], 0, I2C_DEVADDR_MAX, &slaveAddr)) {
@@ -151,13 +147,26 @@ bool sendToSlaveCommand(unsigned char nArgs, const char** args, Print* out) {
     return false;
   }
 
-  out->printf("Sending data to slave %u: %s\n", slaveAddr, args[2]);
+  if (slaveAddr == 0) {
+    out->printf("Sending data to all modules: %s\n", args[2]);
+  } else {
+    out->printf("Sending data to slave %u: %s\n", slaveAddr, args[2]);
+  }
 
   Wire.beginTransmission(slaveAddr);
   Wire.write(args[2]);
   Wire.write(0);
   Wire.endTransmission();
-  return true;
+
+  if (slaveAddr == 0) {
+    bool ret = Wire.endTransmission();
+    char* buff = (char*)alloca(strlen(args[2]+1));
+    strcpy(buff, args[2]);
+    ret = handleCommand(buff, out) && ret;
+    return ret;
+  } else {
+    return Wire.endTransmission();
+  }
 }
 
 bool calibrateMotorCommand(unsigned char nArgs, const char** args, Print* out) {
@@ -187,14 +196,14 @@ bool setTimezoneCommand(unsigned char nArgs, const char** args, Print* out) {
   out->printf("Setting timezone to %s\n", args[1]);
   displaySetTimeZone(args[1]);
   strncpy(Config.timeZone, args[1], CONFIG_TZSIZE);
-  memcpy(EEPROM.getDataPtr(), &Config, sizeof(ModuleConfig));
-  EEPROM.commit();  
+  saveConfig();
   return true;
 }
 
 bool displayCommand(unsigned char nArgs, const char** args, Print* out) {
   int ephemeral;
   int time;
+  int justify;
 
   if (!argInRange(args[2], 0, 3600, &ephemeral)) {
     out->printf("Failed: Ephemeral out of range 0 to 3600\n");
@@ -206,9 +215,14 @@ bool displayCommand(unsigned char nArgs, const char** args, Print* out) {
     return false;
   }
 
-  out->printf("Displaying \"%s\"\n", args[2]);
+  if (!argInRange(args[4], 0, JustifyRight, &justify)) {
+    out->printf("Failed: Justify out of range 0 to 3\n"); // JustifyRight
+    return false;
+  }  
+
+  out->printf("Displaying \"%s\"\n", args[1]);
   
-  displayMessage(args[1], strlen(args[1]), ephemeral, time);
+  displayMessage(args[1], strlen(args[1]), ephemeral, time, (DisplayJustify)justify);
   return true;
 }
 
@@ -219,6 +233,22 @@ bool showHelpCommand(unsigned char nArgs, const char** args, Print* out) {
 
 bool showConfigCommand(unsigned char nArgs, const char** args, Print* out) {
   printConfig(out);
+  return true;
+}
+
+bool setMultilineDelayCommand(unsigned char nArgs, const char** args, Print* out) {
+  unsigned int delay;
+
+  if (!argInRange(args[1], 500, UINT_MAX, &delay)) {
+    out->printf("Failed: Delay out of range 500 to INT_MAX\n");
+    return false;
+  }
+
+  out->printf("Setting multi-line delay to %u\n", delay);
+
+  Config.multilineDelay = delay;
+  saveConfig();
+
   return true;
 }
 
@@ -404,9 +434,10 @@ static Command commands[] = {
   { "s",      1, "Speed in RPM (s [1-" DEFTOLIT(MOTOR_MAX_SPEED) "])",                            setSpeedCommand,        false },
   { "r",      0, "Reset",                                                                         resetCommand,           false },
   { "cfg",    0, "Show configuration",                                                            showConfigCommand,      false },
-  { "msg",    3, "Display message (msg \"message\" 10 0)",                                        displayCommand,         true },
+  { "msg",    4, "Display message (msg \"message\" 10 0 2)",                                      displayCommand,         true },
+  { "md",     1, "Set delay in ms between multi-line messages (md 6000)",                         setMultilineDelayCommand,true },
   { "e",      0, "Reenumerate devices",                                                           enumerateDevicesCommand,true },
-  { "x",      2, "Send command to slave (x [0-" DEFTOLIT(I2C_DEVADDR_MAX) "] \"...\")",           sendToSlaveCommand,     true },
+  { "x",      2, "Send command to slave (x [0 for all|-" DEFTOLIT(I2C_DEVADDR_MAX) "] \"...\")",  sendToModuleCommand,    true },
   { "tz",     1, "Set POSIX timezone (tz \"PST8PDT,M3.2.0/2:00:00,M11.1.0/2:00:00\")",            setTimezoneCommand,     true },
   { "cu",     1, "Connect to adhoc update AP (cu UpdateSSID)",                                    beginUpdateCommand,     false },
   { "xu",     0, "Update modules with host firmware",                                             updateModulesCommand,   true },

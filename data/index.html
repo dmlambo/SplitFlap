@@ -47,13 +47,13 @@
             <div class="modeLabel">
               <input type="radio" id="custom" name="displayType" value="custom" onchange="disabledUnchecked(this)" checked/>
               <label for="custom">Custom</label>
-              <input type="text" for="custom" id="customText" name="displayType" onkeydown="onEnterKey()"/>
+              <input class="textInput" type="text" for="custom" id="customText" name="displayType" onkeydown="onEnterKey()"/>
             </div>
 
             <div class="modeLabel">
               <input type="radio" id="time" name="displayType" value="time" onchange="disabledUnchecked(this)"/>
               <label for="time">Time/Date</label>
-              <input list="commonTimes" type="text" for="time" id="timeText" name="displayType" onkeydown="onEnterKey()" disabled/>
+              <input class="textInput" list="commonTimes" type="text" for="time" id="timeText" name="displayType" onkeydown="onEnterKey()" disabled/>
               <datalist id="commonTimes">
                 <option value="%m/%d/%y">eg 03/26/85</option>
                 <option value="%d/%m/%y">eg 26/03/85</option>
@@ -64,12 +64,22 @@
             <fieldset>
               <legend>Justify</legend>
               <div class="justifyLabel">
-                <input type="radio" id="justifyLeft" name="justify"/>
-                <label for="justifyLeft">Left</label>
-                <input type="radio" id="justifyCenter" name="justify"/>
-                <label for="justifyCenter">Center</label>
-                <input type="radio" id="justifyRight" name="justify" checked/>
-                <label for="justifyRight">Right</label>
+                <div>
+                  <input type="radio" id="justifyNone" name="justify" checked>
+                  <label for="justifyNone">None</label>
+                </div>
+                <div>
+                  <input type="radio" id="justifyLeft" name="justify"/>
+                  <label for="justifyLeft">Left</label>
+                </div>
+                <div>
+                  <input type="radio" id="justifyCenter" name="justify"/>
+                  <label for="justifyCenter">Center</label>
+                </div>
+                <div>
+                  <input type="radio" id="justifyRight" name="justify"/>
+                  <label for="justifyRight">Right</label>
+                </div>
               </div>
             </fieldset>
 

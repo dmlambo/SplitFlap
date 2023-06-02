@@ -7,12 +7,20 @@
   <link rel="stylesheet" href="styles.css">
   <title>SplitFlap Shell</title>
   <script>
+    const cmdHistory = Array();
+    var historyIdx = -1;
+    var curCmd = "" // for historyIdx === -1
+
     function handlePost() {
       const shellResponse = document.getElementById("shellResponse")
       const shellInput = document.getElementById("shellInput")
       const shellSubmit = document.getElementById("shellSubmit")
       const request = new XMLHttpRequest()
       var lastIndex = 0
+
+      cmdHistory.unshift(shellInput.value);
+      historyIdx = -1;
+      curCmd = ""
 
       shellResponse.value += shellInput.value + "\n"
 
@@ -32,6 +40,7 @@
           }
           shellInput.disabled = false
           shellSubmit.disabled = false
+          shellInput.focus()
         }
         shellResponse.scrollTop = shellResponse.scrollHeight
       }
@@ -44,10 +53,34 @@
       shellInput.value = ""
     }
 
-    function handlePromptKeyDown() {
+    function handlePromptKeyDown(input) {
       if (event.key === 'Enter') {
         handlePost()
+      } else if (event.key === "ArrowUp") {
+        if (historyIdx === -1) curCmd = input.value 
+        historyIdx++;
+        if(historyIdx >= cmdHistory.length) {
+          historyIdx = cmdHistory.length - 1;
+        } else {
+          input.value = cmdHistory[historyIdx];
+        }
+      } else if (event.key === "ArrowDown") { // Down arrow
+        historyIdx--;
+        if (historyIdx === -1) {
+          input.value = curCmd
+        } else if(historyIdx < -1) {
+          historyIdx = -1
+        } else {
+          input.value = cmdHistory[historyIdx];
+        }
+      } else if (event.keycode === "Escape") {
+        input.value = ""
+        curCmd = ""
       }
+    }
+
+    function handleOnChange(input) {
+      historyIdx = -1
     }
   </script>
 </head>
@@ -57,8 +90,8 @@
       <textarea class="shellArea" placeholder="Response..." id="shellResponse" readonly></textarea>
     </div>
     <div class="shellItem">
-      <input id="shellInput" class="shellInput" onkeydown="handlePromptKeyDown()" type="text">
-      <input id="shellSubmit" type="submit" onclick="handlePost(this)" placeholder="Enter shell command"/>
+      <input id="shellInput" class="shellInput" onkeydown="handlePromptKeyDown(this)" type="text">
+      <input id="shellSubmit" type="submit" onclick="handlePost(this)" onchange="handleOnChange(this)" placeholder="Enter shell command"/>
     </div>
   </div>
 </body>

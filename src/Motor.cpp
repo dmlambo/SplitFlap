@@ -20,8 +20,9 @@ static unsigned char motorState = 0;
 // if we enable the motor too soon before the next interrupt, by, for instance, setting another target mid-turn
 static volatile bool motorEnabled = false;
 static volatile bool motorRunning = false;
-static volatile int motorStep = 0;
+static volatile int motorStep = -MOTOR_STEPS; // This gives it a chance to calibrate on start
 static volatile int motorTarget = 0;
+static volatile unsigned int motorHold = MOTOR_HOLD;
 static volatile int hallDebounce = 0;
 static volatile int waitForLow = false;
 static volatile unsigned int currentFlap = 0;
@@ -50,24 +51,29 @@ void IRAM_ATTR doMotorISR(void *para, void *frame) {
           deviceLastStatus = MODULE_STALLED;
           motorStalled = true;
           motorRunning = motorEnabled = false;
+          motorHold = 0;
           motorStep = 0;
         }
       }
     } else {
       // Advance the next time around
       motorRunning = true;
+      motorHold = MOTOR_HOLD;
     }
     digitalWrite(Pins[0], PinStates[motorState][0]);
     digitalWrite(Pins[1], PinStates[motorState][1]);
     digitalWrite(Pins[2], PinStates[motorState][2]);
     digitalWrite(Pins[3], PinStates[motorState][3]);
   } else {
-    motorRunning = false;
-    digitalWrite(Pins[0], false);
-    digitalWrite(Pins[1], false);
-    digitalWrite(Pins[2], false);
-    digitalWrite(Pins[3], false);
-    disableMotorTimer();
+    if (motorHold) {
+      motorHold--;
+    } else {
+      digitalWrite(Pins[0], false);
+      digitalWrite(Pins[1], false);
+      digitalWrite(Pins[2], false);
+      digitalWrite(Pins[3], false);
+      disableMotorTimer();
+    }
   }
 
   if (!digitalRead(HALL)) {
@@ -115,6 +121,9 @@ void motorSetRPM(int rpm) {
 }
 
 void motorMoveToFlap(unsigned int flap) {
+  // Require a calibrate after a stall
+  if (deviceLastStatus == MODULE_STALLED) return;
+
   if (flap >= MOTOR_FLAPS) {
     flap = 0;
   }

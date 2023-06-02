@@ -65,6 +65,7 @@ void WebServerInit() {
       doc["health"] = "OK";
 
       doc["modules"][0]["address"] = "master";
+      doc["modules"][0]["multilineDelay"] = Config.multilineDelay;
       doc["modules"][0]["status"] = StatusStr[deviceLastStatus];
       doc["modules"][0]["zeroOffset"] = (unsigned char)Config.zeroOffset;
       doc["modules"][0]["flapNumber"] = motorCurrentFlap();
@@ -154,14 +155,14 @@ void WebServerInit() {
     }
   });
 
-  server->on("^\\/display(\\/date)?(\\/ephemeral\\/([0-9]+))?(\\/)?$", HTTP_POST, [] (AsyncWebServerRequest *request) {
+  server->on("^\\/display(\\/(left|right|center))?(\\/date)?(\\/ephemeral\\/([0-9]+))?(\\/)?$", HTTP_POST, [] (AsyncWebServerRequest *request) {
     if (request->contentType() != "text/plain; ") {
       request->send(400, "text/plain", "Content type should be text/plain");
     }
   }, 
   NULL, 
   [] (AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) {
-    static char buff[DISPLAY_MAX_CHARS] = {0};
+    static char buff[DISPLAY_MAX_CHARS+1] = {0};
     static unsigned int buffIdx;
     if (index == 0) buffIdx = 0;
     unsigned int buffLen = DISPLAY_MAX_CHARS - buffIdx;
@@ -176,10 +177,21 @@ void WebServerInit() {
     memcpy(&buff[index], data, buffLen);
 
     if (index + len == total || truncated) {
-      bool date = request->pathArg(0).length();
-      int displaySec = request->pathArg(2).toInt();
+      DisplayJustify justify = JustifyNone;
+      bool date = request->pathArg(2).length();
+      int displaySec = request->pathArg(4).toInt();
+      if (!request->pathArg(1).isEmpty()) {
+        if (request->pathArg(1) == "left") {
+          justify = JustifyLeft;
+        } else if (request->pathArg(1) == "right") {
+          justify = JustifyRight;
+        } else {
+          justify = JustifyCenter;
+        }
+      }
+      buff[index+buffLen] = '\0';
       LOGLN(String(buff) + " len " + (index+buffLen));
-      displayMessage((const char*)buff, index+buffLen, displaySec, date);
+      displayMessage((const char*)buff, index+buffLen, displaySec, date, justify);
       if (truncated) {
         request->send(200, "text/plain", "Truncated to " DEFTOLIT(DISPLAY_MAX_CHARS) " characters");
       } else {

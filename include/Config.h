@@ -7,14 +7,14 @@
 #define MOTOR_IN3 D7
 #define MOTOR_IN4 D8
 
+#define MOTOR_FLAPS 45
 #define MOTOR_STEPS 2038
 #define MOTOR_STALL_STEPS 120
+#define MOTOR_MAX_SPEED 30
+#define MOTOR_HOLD 5 // Keep motor engaged after displaying a character
 
 #define HALL D0
 #define HALL_DEBOUNCE 5
-
-#define MOTOR_FLAPS 45
-#define MOTOR_MAX_SPEED 30
 
 #define I2C_FREQUENCY 25000
 #define I2C_BUFF_LEN 256
@@ -64,9 +64,8 @@ struct ModuleConfig {
   char address; // i2c address
   char zeroOffset; // how many steps after hitting the hall effect marks the zero point (only positive)
   char rpm;
+  unsigned int multilineDelay;
   char timeZone[CONFIG_TZSIZE+1]; // plus null
-
-  unsigned char charMap[256]; // Mapping of characters to flap numbers
 };
 
 extern ModuleConfig Config;
