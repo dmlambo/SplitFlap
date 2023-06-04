@@ -16,6 +16,9 @@ Finally, indeed the software uses the Arduino platform code, but rather than bei
 ## Wire implementation
 The ESP8266 core has a bad I2C implementation. I've patched it up manually to keep it from doing weird things, and destabilizing the system, such as doing clock stretching in odd places, or setting SDA low/high immediately before or after toggling SCL. I've also enabled GCALL by means of always responding ACK to address 0. It seems to work, but it is certainly being misused. 
 
+## Building Notes
+The master device needs 2 4.7k pullup resistors on 4 and 5, that is, SDA and SCL. The hall sensor output also has to be rerouted to D0, and a 10k pullup should be added, since D0 does not have one internally. These features have not beed added to the schematic or the PCB, so if you build this as-is, expect a bit of manual work.
+
 ## FAQ
 ### How do I disconnect my display from the network?
 There's a reset button on the left side. Press it three times. This should clear your credentials.
