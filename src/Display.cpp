@@ -33,7 +33,7 @@ const char* findStop(const char* buff, unsigned int buffLen) {
 
 void strShiftRight(char* buff, unsigned int buffLen, unsigned int amt) {
 	// Swap i with i-amt
-	for (int i = buffLen-1-amt; i >= 0; i--) {
+	for (int i = buffLen - 1; i >= (int)amt; i--) {
 		auto idx = (i - amt + buffLen) % buffLen;
 		auto tmp = buff[i];
 		buff[i] = buff[idx];
