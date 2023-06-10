@@ -25,7 +25,7 @@ static volatile int motorTarget = 0;
 static volatile unsigned int motorHold = MOTOR_HOLD;
 static volatile int hallDebounce = 0;
 static volatile int waitForLow = false;
-static volatile unsigned int currentFlap = 0;
+static volatile unsigned int currentFlap = MOTOR_FLAPS; // Start out of range
 
 volatile bool motorCalibrated = false;
 volatile bool motorStalled = false;
@@ -123,6 +123,9 @@ void motorSetRPM(int rpm) {
 void motorMoveToFlap(unsigned int flap) {
   // Require a calibrate after a stall
   if (deviceLastStatus == MODULE_STALLED) return;
+
+  // No work to be done
+  if (flap == currentFlap) return;
 
   if (flap >= MOTOR_FLAPS) {
     flap = 0;
