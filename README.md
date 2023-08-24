@@ -2,6 +2,10 @@
 
 ESP8266 based controller for split flap display modules. The code is all-in-one, meaning each module runs the same code, but in different modes set in EEPROM. The master runs the web server and controls the first unit, and each other unit acts as an I2C slave to control its own unipolar stepper motor.
 
+## Video!
+
+[![Splitflap Display in Action!](https://img.youtube.com/vi/YFdsrr4tarE/maxresdefault.jpg)](https://www.youtube.com/watch?v=YFdsrr4tarE)
+
 ## Attribution
 This design is mostly [David Königsmann's fantastic design](https://github.com/Dave19171/split-flap) with changes to improve printability, improve durability, or reduce filament use. Specifically the unit has been reduced to 8 characters so it could be printed on an Ender 3 V2. That said, most of the changes are just personal preference, and hats off to David for his great design.
 
